@@ -15,5 +15,32 @@ boot() {
 	linksys,e8450)
 		mtd erase senv || true
 		;;
+	xiaomi,redmi-router-ax6s)
+		. /lib/upgrade/common.sh
+		[ "$(rootfs_type)" = "tmpfs" ] && \
+			logger "bootcount: initramfs mode detected, exit" && \
+			return 0
+		[ -f /etc/fw_env.config ] || echo "/dev/mtd3 0x0 0x10000 0x40000" > /etc/fw_env.config
+		[ -f /etc/fw_sys.config ] || echo "/dev/mtd4 0x0 0x10000 0x40000" > /etc/fw_sys.config
+		local boot_wait=$(fw_printenv -n boot_wait 2>/dev/null)
+		[ "$boot_wait" != "on" ] && fw_setenv boot_wait on
+		local uart_en=$(fw_printenv -n uart_en 2>/dev/null)
+		[ "$uart_en" != "1" ] && fw_setenv uart_en 1
+		local ssh_en=$(fw_printenv -n ssh_en 2>/dev/null)
+		[ "$ssh_en" != "1" ] && fw_setenv ssh_en 1
+		local boot_fw1=$(fw_printenv -n boot_fw1 2>/dev/null)
+		[ "$boot_fw1" != "run boot_rd_img;bootm" ] && fw_setenv boot_fw1 "run boot_rd_img;bootm"
+		local flag_boot_rootfs=$(fw_printenv -n flag_boot_rootfs 2>/dev/null)
+		[ "$flag_boot_rootfs" != "0" ] && fw_setenv flag_boot_rootfs 0
+		local flag_boot_success=$(fw_printenv -n flag_boot_success 2>/dev/null)
+		[ "$flag_boot_success" != "1" ] && fw_setenv flag_boot_success 1
+		local flag_last_success=$(fw_printenv -n flag_last_success 2>/dev/null)
+		[ "$flag_last_success" != "1" ] && fw_setenv flag_last_success 1
+		local flag_try_sys1_failed=$(fw_printenv -n flag_try_sys1_failed 2>/dev/null)
+		[ "$flag_try_sys1_failed" != "0" ] && fw_setenv flag_try_sys1_failed 0
+		local flag_try_sys2_failed=$(fw_printenv -n flag_try_sys2_failed 2>/dev/null)
+		[ "$flag_try_sys2_failed" != "0" ] && fw_setenv flag_try_sys2_failed 0
+		logger "bootcount: xiaomi ax6s/ax3200 nvram verified"
+		;;
 	esac
 }

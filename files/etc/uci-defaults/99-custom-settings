@@ -1,0 +1,60 @@
+#!/bin/sh
+
+# Ensure /etc/config/wireless is generated after mt76 kernel modules are loaded
+[ -x /sbin/wifi ] && /sbin/wifi config
+
+# Configure radio defaults only if wireless is not already configured (e.g. from backup/sysupgrade)
+for num in 0 1; do
+	if [ -z "$(uci -q get wireless.default_radio$num.key)" ]; then
+		band="$(uci -q get wireless.radio$num.band)"
+		if [ "$band" = "2g" ]; then
+			uci set wireless.radio$num.disabled='0'
+			uci set wireless.radio$num.country='US'
+			uci set wireless.radio$num.channel='1'
+			uci set wireless.radio$num.htmode='HT20'
+			uci set wireless.radio$num.cell_density='0'
+			uci set wireless.default_radio$num.disabled='0'
+		elif [ "$band" = "5g" ]; then
+			uci set wireless.radio$num.disabled='0'
+			uci set wireless.radio$num.country='US'
+			uci set wireless.radio$num.channel='36'
+			uci set wireless.radio$num.htmode='HE80'
+			uci set wireless.radio$num.cell_density='0'
+			uci set wireless.default_radio$num.disabled='0'
+		fi
+	fi
+done
+uci -q commit wireless
+
+# Enable Hardware Flow Offloading (MediaTek PPE + WED)
+uci set firewall.@defaults[0].flow_offloading='1'
+uci set firewall.@defaults[0].flow_offloading_hw='1'
+uci -q commit firewall
+
+# Enable Receive Packet Steering (RPS + RFS with 128 flows)
+uci set network.globals.packet_steering='1'
+uci set network.globals.steering_flows='128'
+uci -q commit network
+
+# Enable hardware IRQ balancing across CPU cores
+if uci -q get irqbalance.irqbalance >/dev/null; then
+	uci set irqbalance.irqbalance.enabled='1'
+	uci -q commit irqbalance
+fi
+
+# Set ZRAM compression algorithm to lz4 (lowest latency for Cortex-A53)
+uci set system.@system[0].zram_comp_algo='lz4'
+uci -q commit system
+
+# Configure https-dns-proxy integration with dnsmasq
+if uci -q get https-dns-proxy.config >/dev/null; then
+	uci set https-dns-proxy.config.dnsmasq_config_update='*'
+	uci -q commit https-dns-proxy
+fi
+
+# Enforce schedutil CPU frequency governor
+for gov in /sys/devices/system/cpu/cpufreq/policy*/scaling_governor; do
+	[ -f "$gov" ] && echo schedutil > "$gov" 2>/dev/null
+done
+
+exit 0
