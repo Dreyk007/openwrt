@@ -42,7 +42,8 @@ if uci -q get irqbalance.irqbalance >/dev/null; then
 	uci -q commit irqbalance
 fi
 
-# Set ZRAM compression algorithm to lz4 (lowest latency for Cortex-A53)
+# Set ZRAM size and compression algorithm to lz4 (lowest latency for Cortex-A53)
+uci set system.@system[0].zram_size_mb='120'
 uci set system.@system[0].zram_comp_algo='lz4'
 uci -q commit system
 
