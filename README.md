@@ -44,8 +44,9 @@ The goal of this build is to deliver **line-rate 1 Gbps wired & Wi-Fi 6 throughp
   In `/etc/init.d/boot`, `/sbin/wifi config` normally runs before `/sbin/kmodloader`. To prevent `uci-defaults` from running before the `mt7915e` PCIe driver finishes probing (a known race condition causing the 5 GHz radio to remain unconfigured after flashing), both `77_wireless` and `99-custom-settings` explicitly invoke `/sbin/wifi config` first.
 * **Band-Aware Radio Configuration (`2g` vs `5g`):**
   On the Xiaomi AX3200, `radio0` (`wl0`) is the SoC-integrated **2.4 GHz (802.11n)** radio and `radio1` (`wl1`) is the PCIe **5 GHz MT7915E (802.11ax)** radio. Both scripts dynamically inspect each radio's `band` property and configure:
-  * **2.4 GHz (`2g`):** `HT20` mode, channel `1`, `cell_density='0'`.
-  * **5 GHz (`5g`):** `HE80` mode (80 MHz), non-DFS channel `36` (avoiding sudden 1–10 minute CAC/DFS radar drop-outs), `cell_density='0'`.
+  * **Regulatory Domain:** country code `PA` (`CONFIG_PACKAGE_MAC80211_COUNTRY="PA"`) for both radios.
+  * **2.4 GHz (`2g`):** `HT20` mode, channel `1`, `cell_density='0'`, `psk2+ccmp` (WPA2) for maximum IoT compatibility.
+  * **5 GHz (`5g`):** `HE80` mode (80 MHz), non-DFS channel `36` (avoiding sudden 1–10 minute CAC/DFS radar drop-outs), `cell_density='0'`, `noscan='1'`, WPA2/WPA3 mixed mode (`sae-mixed`), 802.11v BSS-idle power-save for clients (`wnm_sleep_mode='1'`, `wnm_sleep_mode_no_keys='1'`), `dtim_period='3'` and `ocv='0'` (SAE client compatibility).
   * **Out-of-the-Box Auto-Generated SSIDs:** Wi-Fi is enabled on first boot with unique SSIDs (`redmi-ax6s-2g-0-<MAC>` and `redmi-ax6s-5g-1-<MAC>`) and the default password **`12345678`**.
 * **Full `wpad-mbedtls` Suite:**
   Replaces the stripped-down `basic` variant to support **WPA3 (SAE)** and seamless **802.11k/v/r (Fast Transition)** roaming out of the box.
@@ -56,6 +57,8 @@ The goal of this build is to deliver **line-rate 1 Gbps wired & Wi-Fi 6 throughp
 * **Sysctl Network Tuning (`files/etc/sysctl.d/99-bbr.conf`):**
   * **TCP BBR** congestion control (`kmod-tcp-bbr`) + **`fq_codel`** packet scheduler + **TCP FastOpen** (`tcp_fastopen=3`).
   * Expanded conntrack table (`net.netfilter.nf_conntrack_max=32768`) and tuned TCP/UDP session timeouts for heavy P2P/torrent and low-latency gaming workloads.
+* **Stealth Firewall & Local NTP:**
+  `firewall` `input`/`forward` policies (defaults and `wan` zone) are `DROP` instead of the stock `REJECT`, with `drop_invalid='1'`. The router also serves time to the LAN (`system.ntp.enable_server='1'`).
 * **Low-Latency `zram-swap` (`lz4`):**
   Uses **`lz4`** compression (`CONFIG_KERNEL_ZRAM_DEF_COMP_LZ4=y`) for minimal decompression overhead on Cortex-A53, paired with `vm.swappiness=100`, `vm.page-cluster=0`, and `vm.vfs_cache_pressure=50`.
 
@@ -68,7 +71,7 @@ The goal of this build is to deliver **line-rate 1 Gbps wired & Wi-Fi 6 throughp
 * **Encrypted DNS (DoH HTTP/2 & HTTP/3):** `https-dns-proxy` + `luci-app-https-dns-proxy` (lightweight C daemon, ~40 KB footprint).
 * **Smart Queue Management (SQM / CAKE QoS):** `luci-app-sqm` (`sqm-scripts`, `kmod-sched-cake`) — pre-installed and disabled by default so Hardware Flow Offloading remains active unless the user explicitly enables SQM.
 * **Home Network Services:** `luci-app-upnp` (`miniupnpd-nftables`), `luci-app-ddns`, `luci-app-wol` (`etherwake`), `luci-app-watchcat`, `luci-app-wifischedule`, `luci-app-usteer` (802.11k/v/r roaming controller), `luci-app-uhttpd`.
-* **Monitoring & Diagnostics:** `luci-app-nlbwmon` (per-client traffic accounting), `luci-app-statistics` (`collectd` graphs for CPU, RAM, interfaces, Wi-Fi, and MT7915E thermal sensor), `luci-app-ttyd` (web terminal), and CLI utilities (`htop`, `nano`, `curl`, `iperf3`, `ethtool`, `tcpdump-mini`, `bind-dig`, `mtr-nojson`).
+* **Monitoring & Diagnostics:** `luci-app-nlbwmon` (per-client traffic accounting), `luci-app-statistics` (`collectd` graphs for CPU, CPU frequency, RAM, `br-lan`/`wan` interfaces, Wi-Fi, hardware sensors, and MT7915E thermal sensor — enabled by default), `luci-app-ttyd` (web terminal), and CLI utilities (`htop`, `nano`, `curl`, `iperf3`, `ethtool`, `tcpdump-mini`, `bind-dig`, `mtr-nojson`).
 
 ---
 

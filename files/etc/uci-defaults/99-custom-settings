@@ -9,18 +9,23 @@ for num in 0 1; do
 		band="$(uci -q get wireless.radio$num.band)"
 		if [ "$band" = "2g" ]; then
 			uci set wireless.radio$num.disabled='0'
-			uci set wireless.radio$num.country='US'
+			uci set wireless.radio$num.country='PA'
 			uci set wireless.radio$num.channel='1'
 			uci set wireless.radio$num.htmode='HT20'
 			uci set wireless.radio$num.cell_density='0'
 			uci set wireless.default_radio$num.disabled='0'
 		elif [ "$band" = "5g" ]; then
 			uci set wireless.radio$num.disabled='0'
-			uci set wireless.radio$num.country='US'
+			uci set wireless.radio$num.country='PA'
 			uci set wireless.radio$num.channel='36'
 			uci set wireless.radio$num.htmode='HE80'
 			uci set wireless.radio$num.cell_density='0'
+			uci set wireless.radio$num.noscan='1'
 			uci set wireless.default_radio$num.disabled='0'
+			uci set wireless.default_radio$num.wnm_sleep_mode='1'
+			uci set wireless.default_radio$num.wnm_sleep_mode_no_keys='1'
+			uci set wireless.default_radio$num.dtim_period='3'
+			uci set wireless.default_radio$num.ocv='0'
 		fi
 	fi
 done
@@ -29,7 +34,33 @@ uci -q commit wireless
 # Enable Hardware Flow Offloading (MediaTek PPE + WED)
 uci set firewall.@defaults[0].flow_offloading='1'
 uci set firewall.@defaults[0].flow_offloading_hw='1'
+
+# Drop invalid conntrack packets
+[ -z "$(uci -q get firewall.@defaults[0].drop_invalid)" ] && uci set firewall.@defaults[0].drop_invalid='1'
+
+# Stealth firewall: DROP instead of REJECT for input/forward (only if still at the stock REJECT value)
+for opt in input forward; do
+	[ "$(uci -q get firewall.@defaults[0].$opt)" = "REJECT" ] && uci set firewall.@defaults[0].$opt='DROP'
+done
+zidx=0
+while uci -q get firewall.@zone[$zidx] >/dev/null; do
+	if [ "$(uci -q get firewall.@zone[$zidx].name)" = "wan" ]; then
+		for opt in input forward; do
+			[ "$(uci -q get firewall.@zone[$zidx].$opt)" = "REJECT" ] && uci set firewall.@zone[$zidx].$opt='DROP'
+		done
+	fi
+	zidx=$((zidx + 1))
+done
 uci -q commit firewall
+
+# Enable CPU frequency, hardware sensors and thermal graphs (collectd) and track the WAN interface
+if [ -f /etc/config/luci_statistics ]; then
+	for plugin in cpufreq sensors thermal; do
+		[ "$(uci -q get luci_statistics.collectd_$plugin.enable)" = "0" ] && uci set luci_statistics.collectd_$plugin.enable='1'
+	done
+	[ "$(uci -q get luci_statistics.collectd_interface.Interfaces)" = "br-lan" ] && uci set luci_statistics.collectd_interface.Interfaces='br-lan wan'
+	uci -q commit luci_statistics
+fi
 
 # Enable Receive Packet Steering (RPS + RFS with 128 flows)
 uci set network.globals.packet_steering='1'

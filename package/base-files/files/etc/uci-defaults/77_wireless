@@ -27,6 +27,7 @@ radio_enable() {
 	elif [ "$band" = "5g" ]; then
 		uci set wireless.radio$num.channel='36'
 		uci set wireless.radio$num.htmode='HE80'
+		uci set wireless.radio$num.noscan='1'
 	fi
 	if [ -z "$ssid" ]; then
 		ssid="$( board_name | cut -d ',' -f2- )"
@@ -52,8 +53,16 @@ radio_enable() {
 	ssid="$( echo -n "$ssid" | sed -r 's/[\.\,:]+/-/g' )"
 	uci set wireless.default_radio$num.disabled=0
 	uci set wireless.default_radio$num.ssid="$ssid"
+	if [ "$band" = "5g" ]; then
+		uci set wireless.default_radio$num.wnm_sleep_mode='1'
+		uci set wireless.default_radio$num.wnm_sleep_mode_no_keys='1'
+		uci set wireless.default_radio$num.dtim_period='3'
+		uci set wireless.default_radio$num.ocv='0'
+	fi
 	if [ -n "$key" ]; then
 		[ -z "$encryption" ] && encryption=psk2+ccmp
+		# 5 GHz: WPA2/WPA3 mixed mode (SAE + PSK) instead of plain psk2+ccmp
+		[ "$band" = "5g" ] && [ "$encryption" = "psk2+ccmp" ] && encryption=sae-mixed
 		uci set wireless.default_radio$num.encryption=$encryption
 		uci set wireless.default_radio$num.key="$key"
 	fi
