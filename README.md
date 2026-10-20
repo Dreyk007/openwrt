@@ -11,7 +11,7 @@ The goal of the build is **line-rate 1 Gbps wired and Wi-Fi 6 throughput, low la
 > [!WARNING]
 > Wi-Fi is **enabled on first boot with the public default password `12345678`** and the web interface has **no root password**. Set both right after flashing (LuCI → *System → Administration* and *Network → Wireless*).
 
-**Contents:** [Key changes](#key-changes) · [SQM or hardware offloading?](#sqm-or-hardware-offloading) · [Pre-installed packages](#pre-installed-packages) · [Installation](#installation) · [Building](#building)
+**Contents:** [Key changes](#key-changes) · [SQM or hardware offloading?](#sqm-or-hardware-offloading) · [Pre-installed packages](#pre-installed-packages) · [Installation](#installation) · [Building](#building) · [Updating to a new release](UPGRADING.md)
 
 ---
 
@@ -219,6 +219,9 @@ cp ax3200.config .config && make defconfig
 make menuconfig
 ./scripts/diffconfig.sh > ax3200.config
 ```
+
+### Updating to a New OpenWrt Release
+[UPGRADING.md](UPGRADING.md) describes in detail how to merge a new minor release (e.g. 25.12.7) into this branch and how to port the build to a new major release, including the vermagic update, the kernel configuration parity check against the official SDK and the on-device verification.
 
 ---
 
