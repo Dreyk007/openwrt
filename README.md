@@ -48,7 +48,7 @@ The goal of the build is **line-rate 1 Gbps wired and Wi-Fi 6 throughput, low la
 * **Full `wpad-mbedtls`** instead of the `basic` variant: **WPA3 (SAE)** and **802.11k/v/r** fast roaming (+ `usteer`).
 
 ### 5. Network Stack and Memory (256 MB RAM)
-* **Packet steering** (`packet_steering='1'`, `steering_flows='128'`): pins the threaded NAPI workers of the Ethernet (`mtk_eth`) and Wi-Fi (`mt76`) drivers to different CPU cores and enables RPS + RFS with 128 flows. `irqbalance` is intentionally not installed: packet processing runs in the NAPI threads that packet steering already distributes, and the daemon would only move the IRQ top halves around.
+* **Packet steering** (`packet_steering='1'`, `steering_flows='128'`): pins the threaded NAPI workers of the Ethernet (`mtk_eth`) and Wi-Fi (`mt76`) drivers to different CPU cores and enables RPS + RFS with 128 flows. `irqbalance` is intentionally not installed: with threaded NAPI the packet processing runs in the threads that packet steering already distributes, while irqbalance only moves the IRQ top halves — without knowing where those threads are pinned, so it can split the Ethernet TX/RX IRQs away from their NAPI CPU. It can still be added with `apk add irqbalance`.
 * **Sysctl tuning** (`files/etc/sysctl.d/99-bbr.conf`):
   * **TCP BBR**, `fq_codel` and TCP Fast Open (`tcp_fastopen=3`). They apply to TCP connections terminated on the router itself (LuCI, DoH proxy, `iperf3` server, package downloads), not to traffic forwarded for LAN clients. `fq_codel` is the OpenWrt default qdisc anyway.
   * Larger conntrack table (`nf_conntrack_max=32768`) and adjusted TCP/UDP timeouts for P2P and gaming.
