@@ -13,6 +13,14 @@ The goal of this build is to deliver **line-rate 1 Gbps wired & Wi-Fi 6 throughp
 ### 1. Low-Level CPU Architecture Optimizations (`ARM Cortex-A53`)
 * **Compiler Flags (`-O2 -pipe -mcpu=cortex-a53+crypto+crc`):**
   Upstream OpenWrt builds default to `-Os` (optimize for size), which disables function, loop, and jump alignment (`-falign-functions`, `-falign-loops`, `-falign-jumps`). On the dual-core **MediaTek MT7622B (Cortex-A53 @ 1.35 GHz)** with its in-order execution pipeline, unaligned branch targets incur extra L1 instruction cache misses. Because the AX3200 has 128 MB of NAND flash, this build switches to **`-O2`** and explicitly enables hardware **ARMv8 Crypto Extensions (AES, SHA1/SHA2, GHASH)** and **CRC32** instructions.
+* **Global Link-Time Optimization (`CONFIG_USE_LTO=y`):**
+  Enables GCC LTO (`-flto=auto -fuse-linker-plugin -fno-fat-lto-objects`) across userland packages and shared libraries, allowing whole-program interprocedural analysis, cross-file function inlining, and aggressive dead code elimination.
+* **Dead Code & Data Elimination (`CONFIG_USE_GC_SECTIONS=y`):**
+  Compiles userland packages with `-ffunction-sections -fdata-sections` and links with `-Wl,--gc-sections`, ensuring unreferenced functions and data items are removed from final binaries.
+* **Enhanced Exploit Mitigation & Security Hardening:**
+  Explicitly enforces aggressive compile-time and runtime defenses: Level 2 buffer-overflow protection (`CONFIG_PKG_FORTIFY_SOURCE_2=y`), GCC Stack-Protector Canary for both userland and kernel (`CONFIG_PKG_CC_STACKPROTECTOR_REGULAR=y`, `CONFIG_KERNEL_CC_STACKPROTECTOR_REGULAR=y`), Full Read-Only Relocations (`CONFIG_PKG_RELRO_FULL=y`), and Position-Independent Executables (`CONFIG_PKG_ASLR_PIE_REGULAR=y`).
+* **Aggressive Binary Stripping & Reproducible Builds:**
+  Uses `sstrip -z` (`CONFIG_USE_SSTRIP=y`, `CONFIG_USE_STRIP=n`) to eliminate superfluous ELF section headers from target binaries, combined with deterministic path remapping (`CONFIG_IREMAP=y`) and kernel dead code elimination requests (`CONFIG_KERNEL_DEAD_CODE_DATA_ELIMINATION=y`).
 * **Default CPU Frequency Governor Switched to `schedutil` (`target/linux/mediatek/mt7622/config-6.12`):**
   By default, the `mt7622` target uses the legacy `ondemand` governor, which relies on periodic timer polling and introduces a 10–20 ms ramp-up delay (300 MHz $\rightarrow$ 1.35 GHz) during sudden network traffic bursts. This build enables **`schedutil`** (`CONFIG_CPU_FREQ_DEFAULT_GOV_SCHEDUTIL=y`) as the default kernel governor, scaling CPU frequency directly from the kernel scheduler without polling lag.
 
