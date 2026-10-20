@@ -28,6 +28,7 @@ The goal of the build is **line-rate 1 Gbps wired and Wi-Fi 6 throughput, low la
 * **Hardware Flow Offloading (PPE):** the MediaTek **Packet Processing Engine** (`kmod-nft-offload`, `flow_offloading='1'`, `flow_offloading_hw='1'`) handles routing and NAT of established flows in hardware at line rate with almost no CPU load.
 * **Wireless Ethernet Dispatch** (`files/etc/modules.conf`: `options mt7915e wed_enable=Y`): offloaded WAN traffic is forwarded by the PPE directly into the DMA rings of the **MT7915E (5 GHz Wi-Fi 6)** radio, bypassing the CPU. The MT7622 has no WED RX, so only WAN → Wi-Fi traffic bypasses the CPU this way; Wi-Fi → WAN traffic is forwarded by the CPU through the software flow offload path.
 * **`bridger` is not included:** it is only useful in dumb AP mode. In router mode HFO + WED already accelerate WAN ↔ LAN/Wi-Fi traffic, while `bridger` can cause short client stalls during 802.11k/v/r roaming and conflicts with `tc`/`nftables` filters.
+* **Correct flow accounting with HFO:** the kernel patch `target/linux/mediatek/patches-6.12/970-net-ethernet-mtk_ppe-fix-flow-accounting-on-unbind-and-rebind.patch` fixes the PPE flow counters when a flow is unbound or re-bound. Without it the conntrack counters of offloaded flows — and with them the per-client statistics of `nlbwmon` — jumped by ~4 GB (2³²) each time.
 * HFO bypasses the Linux queueing layer, so it cannot be combined with SQM — see [SQM or hardware offloading?](#sqm-or-hardware-offloading).
 
 ### 3. NVRAM Anti-Brick Protection ("6 reboots → orange LED" fix)
