@@ -26,8 +26,6 @@ boot() {
 		[ "$boot_wait" != "on" ] && fw_setenv boot_wait on
 		local uart_en=$(fw_printenv -n uart_en 2>/dev/null)
 		[ "$uart_en" != "1" ] && fw_setenv uart_en 1
-		local ssh_en=$(fw_printenv -n ssh_en 2>/dev/null)
-		[ "$ssh_en" != "1" ] && fw_setenv ssh_en 1
 		local boot_fw1=$(fw_printenv -n boot_fw1 2>/dev/null)
 		[ "$boot_fw1" != "run boot_rd_img;bootm" ] && fw_setenv boot_fw1 "run boot_rd_img;bootm"
 		local flag_boot_rootfs=$(fw_printenv -n flag_boot_rootfs 2>/dev/null)
