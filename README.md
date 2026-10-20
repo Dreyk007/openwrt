@@ -11,7 +11,7 @@ The goal of the build is **line-rate 1 Gbps wired and Wi-Fi 6 throughput, low la
 > [!WARNING]
 > Wi-Fi is **enabled on first boot with the public default password `12345678`** and the web interface has **no root password**. Set both right after flashing (LuCI → *System → Administration* and *Network → Wireless*).
 
-**Contents:** [Key changes](#key-changes) · [SQM or hardware offloading?](#sqm-or-hardware-offloading) · [Pre-installed packages](#pre-installed-packages) · [Installation](#installation) · [Building](#building) · [Updating to a new release](UPGRADING.md)
+**Contents:** [Key changes](#key-changes) · [SQM or hardware offloading?](#sqm-or-hardware-offloading) · [Wi-Fi 160 MHz and VR](#wi-fi-at-160-mhz-he160-and-vr-streaming) · [Pre-installed packages](#pre-installed-packages) · [Installation](#installation) · [Building](#building) · [Updating to a new release](UPGRADING.md)
 
 ---
 
@@ -22,11 +22,11 @@ The goal of the build is **line-rate 1 Gbps wired and Wi-Fi 6 throughput, low la
 * **Compiler flags `-O2 -pipe -mcpu=cortex-a53+crypto+crc`:** upstream builds use `-Os`, which disables function/loop/jump alignment. The AX3200 has 128 MB of NAND, so this build trades size for speed with `-O2` and enables the ARMv8 **Crypto Extensions (AES, SHA1/SHA2, GHASH)** and **CRC32** instructions.
 * **Link-Time Optimization** (`CONFIG_USE_LTO=y`) and **dead code/data elimination** (`CONFIG_USE_GC_SECTIONS=y`) for userland packages.
 * **`FORTIFY_SOURCE=2`** (`CONFIG_PKG_FORTIFY_SOURCE_2=y`) instead of the default level 1. The other hardening options (stack protector for userland and kernel, full RELRO, PIE) and `sstrip -z` binary stripping are OpenWrt defaults and are kept as is.
-* **`schedutil` CPU frequency governor** by default (`target/linux/mediatek/mt7622/config-6.12`) instead of `ondemand`. `ondemand` samples the load periodically and ramps up the clock (300 MHz → 1.35 GHz) with a delay on traffic bursts; `schedutil` scales the frequency directly from the scheduler.
+* **`schedutil` CPU frequency governor** by default (`target/linux/mediatek/mt7622/config-6.12`) instead of `ondemand`. `ondemand` samples the load periodically and ramps up the clock (437.5 MHz → 1.35 GHz) with a delay on traffic bursts; `schedutil` scales the frequency directly from the scheduler. Measured on the device at idle: 3.8 % CPU load with `schedutil` vs 6.0 % with `ondemand`.
 
 ### 2. Hardware NAT and Wi-Fi 6 Acceleration (HFO + WED)
 * **Hardware Flow Offloading (PPE):** the MediaTek **Packet Processing Engine** (`kmod-nft-offload`, `flow_offloading='1'`, `flow_offloading_hw='1'`) handles routing and NAT of established flows in hardware at line rate with almost no CPU load.
-* **Wireless Ethernet Dispatch** (`files/etc/modules.conf`: `options mt7915e wed_enable=Y`): offloaded WAN traffic is forwarded by the PPE directly into the DMA rings of the **MT7915E (5 GHz Wi-Fi 6)** radio, bypassing the CPU.
+* **Wireless Ethernet Dispatch** (`files/etc/modules.conf`: `options mt7915e wed_enable=Y`): offloaded WAN traffic is forwarded by the PPE directly into the DMA rings of the **MT7915E (5 GHz Wi-Fi 6)** radio, bypassing the CPU. The MT7622 has no WED RX, so only WAN → Wi-Fi traffic bypasses the CPU this way; Wi-Fi → WAN traffic is forwarded by the CPU through the software flow offload path.
 * **`bridger` is not included:** it is only useful in dumb AP mode. In router mode HFO + WED already accelerate WAN ↔ LAN/Wi-Fi traffic, while `bridger` can cause short client stalls during 802.11k/v/r roaming and conflicts with `tc`/`nftables` filters.
 * HFO bypasses the Linux queueing layer, so it cannot be combined with SQM — see [SQM or hardware offloading?](#sqm-or-hardware-offloading).
 
@@ -45,7 +45,7 @@ The goal of the build is **line-rate 1 Gbps wired and Wi-Fi 6 throughput, low la
   * **5 GHz:** `HE80`, non-DFS channel `36` (no 1–10 minute DFS/CAC radar drop-outs), `noscan='1'`, WPA2/WPA3 mixed mode (`sae-mixed`), `wnm_sleep_mode='1'`, `wnm_sleep_mode_no_keys='1'`, `dtim_period='3'`, `ocv='0'` (SAE client compatibility).
   * **SSIDs:** `<board>-<band>-<radio><last 4 hex digits of the MAC>`, e.g. `redmi-router-ax6s-2g-0a1b2` and `redmi-router-ax6s-5g-1a1b2`; password **`12345678`**.
 * Settings are applied only if the radio has no Wi-Fi key yet, so they never overwrite a restored configuration.
-* **Full `wpad-mbedtls`** instead of the `basic` variant: **WPA3 (SAE)** and **802.11k/v/r** fast roaming (+ `usteer`).
+* **Full `wpad-mbedtls`** instead of the `basic` variant: **WPA3 (SAE)** and support for **802.11k/v/r**. The roaming options are not enabled by default: with a single access point and a separate SSID per band there is nothing to roam to. For a multi-AP setup enable them in the wireless settings and install `usteer` (`apk add usteer luci-app-usteer`).
 
 ### 5. Network Stack and Memory (256 MB RAM)
 * **Packet steering** (`packet_steering='1'`, `steering_flows='128'`): pins the threaded NAPI workers of the Ethernet (`mtk_eth`) and Wi-Fi (`mt76`) drivers to different CPU cores and enables RPS + RFS with 128 flows. `irqbalance` is intentionally not installed: with threaded NAPI the packet processing runs in the threads that packet steering already distributes, while irqbalance only moves the IRQ top halves — without knowing where those threads are pinned, so it can split the Ethernet TX/RX IRQs away from their NAPI CPU. It can still be added with `apk add irqbalance`.
@@ -97,11 +97,39 @@ The choice is kept across sysupgrades (see [section 6](#6-how-the-defaults-are-a
 
 ---
 
+## Wi-Fi at 160 MHz (HE160) and VR Streaming
+
+The 5 GHz radio defaults to **HE80 on channel 36** for the widest client compatibility. The MT7915E also supports **160 MHz (HE160)**, which doubles the link rate of the usual 2×2 clients (phones, laptops, VR headsets): up to 2402 Mbit/s instead of 1201 Mbit/s. At 160 MHz the radio uses 2 spatial streams instead of 4, so 3×3/4×4 clients gain less.
+
+With the `PA` regulatory domain the 5470–5725 MHz band (channels 100–128) allows 160 MHz **without DFS**: no 1-minute channel availability check after boot and no channel switches on radar detection.
+
+Trade-offs:
+* clients that do not support channels 100–144 will not see the 5 GHz network;
+* slightly shorter range at the edge of coverage (the same power is spread over twice the bandwidth);
+* outside Panama these channels are usually subject to DFS rules — check your local regulations.
+
+Enable it in LuCI → *Network → Wireless* → 5 GHz radio → *Edit* → *Operating frequency*: mode **AX**, channel **100**, width **160 MHz** → *Save & Apply*, or over SSH:
+```sh
+uci set wireless.radio1.channel='100'
+uci set wireless.radio1.htmode='HE160'
+uci commit wireless
+wifi reload
+```
+`iwinfo wl1-ap0 info` then shows `HT Mode: HE160`. To go back to the default, set channel `36` and `HE80`.
+
+**PC VR streaming** (Virtual Desktop, Steam Link, Air Link) benefits most from HE160 — provided the headset supports 160 MHz on 5 GHz (check its specifications; support depends on the model and its firmware):
+* connect the PC to a LAN port with a cable, so that there is only one wireless hop;
+* keep the headset in the same room as the router, ideally with line of sight;
+* connect the headset to the 5 GHz network only;
+* the PC ↔ headset traffic is bridged inside the LAN and handled by the CPU (HFO and WED only accelerate routed WAN traffic, SQM does not apply to it); VR streams of a few hundred Mbit/s are well within its capacity.
+
+---
+
 ## Pre-installed Packages
 * **Web UI:** `luci`, `luci-ssl`, full Russian and English localization (`CONFIG_LUCI_LANG_ru=y`; the language follows the browser). Themes: **Footstrap** (default) — the new LuCI theme with a collapsible sidebar or top bar, light/dark modes, a menu search and an *Appearance* page for colours, density, layout and wallpaper — and the stock **Bootstrap**. When upgrading from an older build, a removed theme (OpenWrt-2020, Material) is replaced with Footstrap automatically.
 * **Encrypted DNS (DoH, HTTP/2 & HTTP/3):** `https-dns-proxy` + `luci-app-https-dns-proxy` (Cloudflare and Google out of the box). Clients are not forced to use the router's DNS (`force_dns='0'`), so client-side encrypted DNS such as Android Private DNS (DoT) keeps working.
 * **SQM / CAKE QoS:** `luci-app-sqm` (`sqm-scripts`, `kmod-sched-cake`) — installed but **disabled** by default.
-* **Home network services:** `luci-app-upnp` (`miniupnpd-nftables`), `luci-app-ddns`, `luci-app-wol` (`etherwake`), `luci-app-watchcat`, `luci-app-wifischedule`, `luci-app-usteer` (802.11k/v/r roaming controller), `luci-app-uhttpd`.
+* **Home network services:** `luci-app-upnp` (`miniupnpd-nftables`), `luci-app-ddns`, `luci-app-wol` (`etherwake`), `luci-app-watchcat`, `luci-app-wifischedule`, `luci-app-uhttpd`.
 * **Monitoring and diagnostics:** `luci-app-nlbwmon` (per-client traffic accounting), `luci-app-statistics` (`collectd` graphs of CPU load and frequency, RAM, `br-lan`/`wan`, Wi-Fi, conntrack, hardware sensors and the MT7915E temperature), `luci-app-ttyd` (web terminal), CLI tools `htop`, `nano`, `curl`, `iperf3`, `ethtool`, `tcpdump-mini`, `bind-dig`, `mtr-nojson`.
 
 ---
