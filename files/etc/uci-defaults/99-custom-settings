@@ -34,9 +34,9 @@ while uci -q get firewall.@zone[$zidx] >/dev/null; do
 done
 uci -q commit firewall
 
-# Enable CPU frequency, hardware sensors and thermal graphs (collectd) and track the WAN interface
+# Enable CPU frequency, conntrack, hardware sensors and thermal graphs (collectd) and track the WAN interface
 if [ -f /etc/config/luci_statistics ]; then
-	for plugin in cpufreq sensors thermal; do
+	for plugin in cpufreq conntrack sensors thermal; do
 		[ "$(uci -q get luci_statistics.collectd_$plugin.enable)" = "0" ] && uci set luci_statistics.collectd_$plugin.enable='1'
 	done
 	[ "$(uci -q get luci_statistics.collectd_interface.Interfaces)" = "br-lan" ] && uci set luci_statistics.collectd_interface.Interfaces='br-lan wan'
