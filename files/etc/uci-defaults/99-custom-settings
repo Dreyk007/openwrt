@@ -34,6 +34,12 @@ while uci -q get firewall.@zone[$zidx] >/dev/null; do
 done
 uci -q commit firewall
 
+# SSH only on the LAN interface (defense in depth on top of the DROP policy on WAN)
+if uci -q get dropbear.@dropbear[0] >/dev/null; then
+	[ -z "$(uci -q get dropbear.@dropbear[0].Interface)" ] && uci set dropbear.@dropbear[0].Interface='lan'
+	uci -q commit dropbear
+fi
+
 # Enable CPU frequency, conntrack, hardware sensors and thermal graphs (collectd) and track the WAN interface
 if [ -f /etc/config/luci_statistics ]; then
 	for plugin in cpufreq conntrack sensors thermal; do

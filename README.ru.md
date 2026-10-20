@@ -53,7 +53,7 @@
   * **TCP BBR**, `fq_codel` и TCP Fast Open (`tcp_fastopen=3`). Они действуют на TCP-соединения самого роутера (LuCI, DoH-прокси, сервер `iperf3`, загрузка пакетов), а не на трафик клиентов LAN, который роутер пересылает. `fq_codel` и так является дисциплиной очередей по умолчанию в OpenWrt.
   * Увеличенная таблица conntrack (`nf_conntrack_max=32768`) и скорректированные таймауты TCP/UDP для P2P и игр.
   * Глобальная таблица потоков RFS (`net.core.rps_sock_flow_entries=1024`). Packet steering в OpenWrt задаёт только число потоков на очередь (`steering_flows`); без этой таблицы RFS не работает. Влияет только на трафик, который завершается на самом роутере.
-* **«Стелс»-файрвол:** политики `input`/`forward` по умолчанию и в зоне `wan` — `DROP` вместо `REJECT`, плюс `drop_invalid='1'`.
+* **«Стелс»-файрвол:** политики `input`/`forward` по умолчанию и в зоне `wan` — `DROP` вместо `REJECT`, плюс `drop_invalid='1'`. SSH (`dropbear`) слушает только интерфейс LAN (`Interface='lan'`).
 * **NTP-сервер для LAN** (`system.ntp.enable_server='1'`).
 * **`zram-swap` на 120 МБ с `lz4`** (`CONFIG_KERNEL_ZRAM_DEF_COMP_LZ4=y`) и `vm.swappiness=100`, `vm.page-cluster=0`, `vm.vfs_cache_pressure=50`.
 * **Службы перезапускаются бесконечно** после сбоев (procd `respawn_retry='0'`); `https-dns-proxy` переживает переподключения WAN (`conn_loss_time='30'`).

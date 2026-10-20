@@ -53,7 +53,7 @@ The goal of the build is **line-rate 1 Gbps wired and Wi-Fi 6 throughput, low la
   * **TCP BBR**, `fq_codel` and TCP Fast Open (`tcp_fastopen=3`). They apply to TCP connections terminated on the router itself (LuCI, DoH proxy, `iperf3` server, package downloads), not to traffic forwarded for LAN clients. `fq_codel` is the OpenWrt default qdisc anyway.
   * Larger conntrack table (`nf_conntrack_max=32768`) and adjusted TCP/UDP timeouts for P2P and gaming.
   * Global RFS socket flow table (`net.core.rps_sock_flow_entries=1024`). OpenWrt's packet steering only sets the per-queue flow count (`steering_flows`); without this table RFS stays inactive. It affects only traffic terminated on the router itself.
-* **Stealth firewall:** `input`/`forward` policies of the defaults and the `wan` zone are `DROP` instead of `REJECT`, plus `drop_invalid='1'`.
+* **Stealth firewall:** `input`/`forward` policies of the defaults and the `wan` zone are `DROP` instead of `REJECT`, plus `drop_invalid='1'`. SSH (`dropbear`) listens only on the LAN interface (`Interface='lan'`).
 * **LAN NTP server** (`system.ntp.enable_server='1'`).
 * **`zram-swap` 120 MB with `lz4`** (`CONFIG_KERNEL_ZRAM_DEF_COMP_LZ4=y`) and `vm.swappiness=100`, `vm.page-cluster=0`, `vm.vfs_cache_pressure=50`.
 * **Services are restarted indefinitely** after crashes (procd `respawn_retry='0'`); `https-dns-proxy` tolerates WAN reconnects (`conn_loss_time='30'`).
