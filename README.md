@@ -95,6 +95,37 @@ Compiled firmware images are placed in `bin/targets/mediatek/mt7622/`:
 
 ---
 
+## Automated One-Step Build via `build.sh`
+
+For a fully automated build from scratch, a standalone script [`build.sh`](build.sh) is provided in the repository root. It handles system dependency installation via `apt`, updates package feeds, applies `ax3200.config`, synchronizes kernel `vermagic`, compiles firmware using all CPU cores, extracts the raw `sysupgrade.ubi` image, and verifies `sha256sums`.
+
+### 1. Fresh System Setup (Ubuntu 24.04 / 26.04 LTS or Debian)
+
+On a freshly installed system, clone the branch and run the script with `--install-deps`:
+
+```bash
+# Clone the repository
+git clone -b xq-25.12 https://github.com/Dreyk007/openwrt.git
+cd openwrt
+
+# Install all build prerequisites via apt and build firmware
+./build.sh --install-deps
+```
+
+### 2. Subsequent Builds
+
+If prerequisites are already installed, run `build.sh` directly:
+
+```bash
+# Build using all available CPU threads
+./build.sh
+
+# Or specify custom parallel jobs (e.g., -j4)
+./build.sh -j4
+```
+
+---
+
 ## About OpenWrt Project
 
 OpenWrt Project is a Linux operating system targeting embedded devices. Instead
