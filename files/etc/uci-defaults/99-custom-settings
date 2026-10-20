@@ -45,11 +45,20 @@ fi
 # Set ZRAM size and compression algorithm to lz4 (lowest latency for Cortex-A53)
 uci set system.@system[0].zram_size_mb='120'
 uci set system.@system[0].zram_comp_algo='lz4'
+
+# Configure procd service respawn defaults (infinite retry on crash loop)
+if ! uci -q get system.@service[0] >/dev/null; then
+	uci add system service
+fi
+uci set system.@service[0].respawn_threshold='3600'
+uci set system.@service[0].respawn_timeout='5'
+uci set system.@service[0].respawn_retry='0'
 uci -q commit system
 
 # Configure https-dns-proxy integration with dnsmasq
 if uci -q get https-dns-proxy.config >/dev/null; then
 	uci set https-dns-proxy.config.dnsmasq_config_update='*'
+	uci set https-dns-proxy.config.conn_loss_time='30'
 	uci -q commit https-dns-proxy
 fi
 
