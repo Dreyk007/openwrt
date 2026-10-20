@@ -7,10 +7,32 @@
 # configuration: a marker is stored in /etc/config/ax3200, which sysupgrade
 # keeps together with the rest of /etc/config. This way user changes, e.g.
 # disabling flow offloading in favour of SQM, survive firmware upgrades.
+# Only the LuCI theme migration below runs on every flash.
 #
 # Wi-Fi radio defaults are set by /etc/uci-defaults/77_wireless.
 
+# A LuCI theme is usable when its header template exists (the same check LuCI does)
+theme_ok() {
+	[ -f "/usr/share/ucode/luci/template/themes/${1##*/}/header.ut" ]
+}
+
+# LuCI themes, on every flash: forget themes that are no longer installed and replace a
+# missing active theme (e.g. OpenWrt-2020 or Material from older builds) with Footstrap
+for theme in $(uci -q show luci.themes | sed -n "s/^luci\.themes\.\([^.=]*\)=.*/\1/p"); do
+	theme_ok "$(uci -q get luci.themes.$theme)" || uci -q delete luci.themes.$theme
+done
+if ! theme_ok "$(uci -q get luci.main.mediaurlbase)" && theme_ok /luci-static/footstrap; then
+	uci set luci.main.mediaurlbase='/luci-static/footstrap'
+fi
+uci -q commit luci
+
 [ "$(uci -q get ax3200.defaults.applied)" = "1" ] && exit 0
+
+# Footstrap as the default LuCI theme instead of the stock Bootstrap
+if [ "$(uci -q get luci.main.mediaurlbase)" = "/luci-static/bootstrap" ] && theme_ok /luci-static/footstrap; then
+	uci set luci.main.mediaurlbase='/luci-static/footstrap'
+	uci -q commit luci
+fi
 
 # Enable Hardware Flow Offloading (MediaTek PPE + WED)
 uci set firewall.@defaults[0].flow_offloading='1'

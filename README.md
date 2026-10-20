@@ -59,7 +59,7 @@ The goal of the build is **line-rate 1 Gbps wired and Wi-Fi 6 throughput, low la
 * **Services are restarted indefinitely** after crashes (procd `respawn_retry='0'`); `https-dns-proxy` tolerates WAN reconnects (`conn_loss_time='30'`).
 
 ### 6. How the Defaults Are Applied (`99-custom-settings`)
-`uci-defaults` scripts run on the first boot after **every** flash, including a sysupgrade that keeps settings. `files/etc/uci-defaults/99-custom-settings` applies the settings from sections 2 and 5 and the DoH and statistics defaults (see [Pre-installed packages](#pre-installed-packages)) **only once per configuration** and stores a marker in `/etc/config/ax3200`. Your own changes (for example HFO disabled in favour of SQM) are therefore preserved across upgrades. To re-apply the build defaults:
+`uci-defaults` scripts run on the first boot after **every** flash, including a sysupgrade that keeps settings. `files/etc/uci-defaults/99-custom-settings` applies the settings from sections 2 and 5 and the DoH, statistics and LuCI theme defaults (see [Pre-installed packages](#pre-installed-packages)) **only once per configuration** and stores a marker in `/etc/config/ax3200`. Your own changes (for example HFO disabled in favour of SQM) are therefore preserved across upgrades. Only the LuCI theme migration (dropping removed themes) runs on every flash. To re-apply the build defaults:
 ```sh
 uci -q delete ax3200.defaults && uci commit ax3200
 sh /rom/etc/uci-defaults/99-custom-settings
@@ -98,7 +98,7 @@ The choice is kept across sysupgrades (see [section 6](#6-how-the-defaults-are-a
 ---
 
 ## Pre-installed Packages
-* **Web UI:** `luci`, `luci-ssl`, full Russian and English localization (`CONFIG_LUCI_LANG_ru=y`), `Bootstrap`, `OpenWrt-2020` and `Material` themes.
+* **Web UI:** `luci`, `luci-ssl`, full Russian and English localization (`CONFIG_LUCI_LANG_ru=y`; the language follows the browser). Themes: **Footstrap** (default) — the new LuCI theme with a collapsible sidebar or top bar, light/dark modes, a menu search and an *Appearance* page for colours, density, layout and wallpaper — and the stock **Bootstrap**. When upgrading from an older build, a removed theme (OpenWrt-2020, Material) is replaced with Footstrap automatically.
 * **Encrypted DNS (DoH, HTTP/2 & HTTP/3):** `https-dns-proxy` + `luci-app-https-dns-proxy` (Cloudflare and Google out of the box). Clients are not forced to use the router's DNS (`force_dns='0'`), so client-side encrypted DNS such as Android Private DNS (DoT) keeps working.
 * **SQM / CAKE QoS:** `luci-app-sqm` (`sqm-scripts`, `kmod-sched-cake`) — installed but **disabled** by default.
 * **Home network services:** `luci-app-upnp` (`miniupnpd-nftables`), `luci-app-ddns`, `luci-app-wol` (`etherwake`), `luci-app-watchcat`, `luci-app-wifischedule`, `luci-app-usteer` (802.11k/v/r roaming controller), `luci-app-uhttpd`.

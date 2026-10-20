@@ -252,7 +252,7 @@ A new series can change any of the underlying facts. Check each item before buil
 5. **Flash layout:** `DEVICE_COMPAT_VERSION` of `xiaomi_redmi-router-ax6s` in `target/linux/mediatek/image/mt7622.mk`. If it changed, sysupgrade with kept settings is refused and the README installation section needs an update.
 6. **Wi-Fi / WED / HFO:** the `wed_enable` parameter of `mt7915e`, `kmod-nft-offload`, the `flow_offloading*` firewall options.
 7. **Packet steering:** `package/network/config/netifd/files/usr/libexec/network/packet-steering.uc` still pins threaded NAPI and only sets the per-queue `rps_flow_cnt` (then `rps_sock_flow_entries` in `99-bbr.conf` is still needed); the decision against `irqbalance` still holds.
-8. **Defaults script:** option names used by `99-custom-settings` (`https-dns-proxy` `force_dns`, `luci_statistics` plugin sections, `system.@system[0].zram_*`, procd `system.@service[0].respawn_*`).
+8. **Defaults script:** option names used by `99-custom-settings` (`https-dns-proxy` `force_dns`, `luci_statistics` plugin sections, `system.@system[0].zram_*`, procd `system.@service[0].respawn_*`, `dropbear` `Interface`), and the LuCI theme logic: themes are detected by `/usr/share/ucode/luci/template/themes/<name>/header.ut` (the check LuCI itself does in `luci-base/ucode/runtime.uc`), and `luci-theme-footstrap` must still be available.
 9. **Sysctl names** in `99-bbr.conf` (`sysctl -a` on the device after flashing).
 10. **NVRAM anti-brick:** the U-Boot variables used by `bootcount` are still the right ones.
 
