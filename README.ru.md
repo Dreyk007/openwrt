@@ -221,6 +221,16 @@ cd openwrt
 ./build.sh -j4    # своё число параллельных задач
 ```
 
+### Сборка и релиз через GitHub Actions
+Workflow [`.github/workflows/build-ax3200.yml`](.github/workflows/build-ax3200.yml) запускает `build.sh --install-deps` на раннере GitHub (по умолчанию Ubuntu 26.04) и публикует файлы из `bin/targets/mediatek/mt7622/` — те же образы, `sha256sums` и buildinfo, что и при локальной сборке — как релиз GitHub. Запускается только вручную: *Actions → Build AX3200 firmware → Run workflow*. Параметры:
+* **release tag** — пусто для следующего `v<версия OpenWrt>-ax3200-r<N>`;
+* **prerelease** — опубликовать как пре-релиз;
+* **runner** — `ubuntu-26.04` или запасной `ubuntu-24.04`.
+
+Полная сборка на 4-ядерном раннере занимает несколько часов; исходники (`dl/`) кэшируются между запусками. Если сборка упала, её лог прикладывается к запуску как артефакт `build-log`.
+
+> В репозитории также лежат собственные CI-workflow OpenWrt (`kernel.yml`, `packages.yml`, `toolchain.yml`, `github-release.yml`, …). Они предназначены для openwrt/openwrt: после включения Actions в форке отключите их (*Actions → workflow → ⋯ → Disable workflow* или `gh workflow disable <файл>`), иначе они будут запускаться на push и на теги `v*`.
+
 ### Ручная сборка
 ```bash
 # 1. Обновление и установка фидов

@@ -177,16 +177,17 @@ sysupgrade    /tmp/openwrt-mediatek-mt7622-xiaomi_redmi-router-ax6s-squashfs-sys
 
 Then run the checks from [Appendix C](#appendix-c-on-device-verification), in particular the **official kmod load test**.
 
-### 2.9. Update the documentation, tag and publish
+### 2.9. Update the documentation and publish
 
 ```bash
 grep -rn "$OLD" README.md README.ru.md UPGRADING.md   # version numbers, vermagic hash (README section 7)
 # edit, then:
 git add -A && git commit -m "Update to OpenWrt $NEW"
-git tag -a v$NEW-ax3200-r1 -m "OpenWrt $NEW Optimized Build for Xiaomi AX3200 / Redmi AX6S"
-git push origin xq-25.12 v$NEW-ax3200-r1
+git push origin xq-25.12
 git tag -d backup/pre-v$NEW
 ```
+
+Then run *Actions → Build AX3200 firmware → Run workflow* on `xq-25.12` with an empty release tag: it builds the firmware and publishes the release `v$NEW-ax3200-r1` (see README, *Build and Release with GitHub Actions*).
 
 ---
 
@@ -269,9 +270,9 @@ A new series can change any of the underlying facts. Check each item before buil
 
 ```bash
 git push -u origin xq-26.xx
-git tag -a v26.xx.0-ax3200-r1 -m "OpenWrt 26.xx.0 Optimized Build for Xiaomi AX3200 / Redmi AX6S"
-git push origin v26.xx.0-ax3200-r1
 ```
+
+   Make `xq-26.xx` the default branch on GitHub (*Settings → General → Default branch*), so that the workflow and the README links point to it, then run *Actions → Build AX3200 firmware → Run workflow* on `xq-26.xx`; it publishes the release `v26.xx.0-ax3200-r1`. Check that the OpenWrt CI workflows that came with the new release branch are disabled.
 
 ---
 

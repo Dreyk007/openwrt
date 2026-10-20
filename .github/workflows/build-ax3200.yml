@@ -1,0 +1,148 @@
+# Build the Xiaomi AX3200 / Redmi AX6S firmware with build.sh and publish it as a
+# GitHub release. Run it manually: Actions -> "Build AX3200 firmware" -> Run workflow.
+name: Build AX3200 firmware
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Release tag (empty: v<OpenWrt version>-ax3200-r<next number>)'
+        required: false
+        default: ''
+      prerelease:
+        description: 'Publish as a pre-release'
+        type: boolean
+        default: false
+      runner:
+        description: 'Runner image'
+        type: choice
+        options:
+          - ubuntu-26.04
+          - ubuntu-24.04
+        default: ubuntu-26.04
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-ax3200
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  build:
+    name: Build and release
+    runs-on: ${{ inputs.runner }}
+    timeout-minutes: 345
+    env:
+      TARGET_DIR: bin/targets/mediatek/mt7622
+
+    steps:
+      # A full build with CONFIG_ALL_KMODS=y needs ~25 GB; the runner guarantees 14 GB.
+      - name: Free disk space
+        run: |
+          df -h /
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc /usr/local/.ghcup \
+            /opt/hostedtoolcache /usr/share/swift /usr/local/share/boost /usr/local/share/powershell \
+            /usr/local/share/chromium /usr/local/lib/node_modules /opt/microsoft /opt/az \
+            /opt/google /usr/lib/jvm
+          sudo docker image prune --all --force > /dev/null || true
+          sudo apt-get clean
+          df -h /
+          avail=$(df --output=avail -BG / | tail -1 | tr -dc '0-9')
+          if [ "$avail" -lt 35 ]; then
+            echo "::error::Only ${avail} GB free, the build needs ~25 GB plus headroom"
+            exit 1
+          fi
+
+      # Full history: scripts/getver.sh derives the r<number> revision from it, and the
+      # tags are needed to number the release.
+      - name: Check out
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Restore source downloads
+        uses: actions/cache@v6
+        with:
+          path: dl
+          key: dl-${{ hashFiles('feeds.conf.default', 'include/kernel-*', 'target/linux/generic/kernel-*') }}-${{ github.run_id }}
+          restore-keys: dl-
+
+      - name: Build firmware
+        run: ./build.sh --install-deps 2>&1 | tee build.log
+
+      - name: Upload build log
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: build-log
+          path: build.log
+          retention-days: 14
+
+      - name: Prepare release
+        id: release
+        env:
+          INPUT_TAG: ${{ inputs.release_tag }}
+        run: |
+          ver=$(grep -oP '(?<=,\$\(VERSION_NUMBER\),)[^)]*' include/version.mk)
+          if [ -n "$INPUT_TAG" ]; then
+            tag=$INPUT_TAG
+          else
+            last=$(git tag -l "v${ver}-ax3200-r*" | sed -n "s/^v${ver}-ax3200-r\([0-9][0-9]*\)$/\1/p" | sort -n | tail -1)
+            tag="v${ver}-ax3200-r$(( ${last:-0} + 1 ))"
+          fi
+          if git rev-parse -q --verify "refs/tags/$tag" > /dev/null; then
+            echo "::error::Tag $tag already exists"
+            exit 1
+          fi
+
+          # Same files as build.sh leaves in the target directory (without packages/)
+          mkdir -p release
+          find "$TARGET_DIR" -maxdepth 1 -type f -exec cp {} release/ \;
+          (cd release && sha256sum -c --quiet sha256sums)
+
+          url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY"
+          prefix=openwrt-mediatek-mt7622-xiaomi_redmi-router-ax6s
+          {
+            echo "OpenWrt **${ver}** for **Xiaomi AX3200 / Redmi AX6S**, built from [\`${GITHUB_SHA::10}\`]($url/commit/$GITHUB_SHA) by GitHub Actions."
+            echo
+            echo "* Revision: \`$(cat "$TARGET_DIR/version.buildinfo")\`"
+            echo "* Kernel vermagic (official, compatible with official kmods): \`$(cat vermagic-mediatek-mt7622-"$ver".list)\`"
+            echo "* Installation and upgrade: [README]($url/blob/$GITHUB_SHA/README.md#installation) · [на русском]($url/blob/$GITHUB_SHA/README.ru.md#установка)"
+            echo
+            echo "| File | Purpose |"
+            echo "|---|---|"
+            echo "| \`$prefix-factory.bin\` | First installation from the stock firmware (XMiR-Patcher) or from OpenWrt ≤ 23.05 |"
+            echo "| \`$prefix-squashfs-sysupgrade.itb\` | Upgrade from OpenWrt 24.10 / 25.12 |"
+            echo "| \`$prefix-sysupgrade.ubi\` | Raw UBI image for older builds that reject the \`.itb\` |"
+            echo "| \`$prefix-ubi-loader.itb\` | Second-stage U-Boot (\`ubi-loader\`) |"
+            echo "| \`$prefix-initramfs-recovery.itb\` | Initramfs recovery image (TFTP) |"
+            echo
+            echo "### SHA256"
+            echo '```'
+            cat release/sha256sums
+            echo '```'
+          } > release-notes.md
+
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "title=OpenWrt $ver for Xiaomi AX3200 / Redmi AX6S ($tag)" >> "$GITHUB_OUTPUT"
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.release.outputs.tag }}
+          TITLE: ${{ steps.release.outputs.title }}
+          PRERELEASE: ${{ inputs.prerelease }}
+        run: |
+          flags=()
+          [ "$PRERELEASE" = "true" ] && flags+=(--prerelease)
+          gh release create "$TAG" release/* --target "$GITHUB_SHA" \
+            --title "$TITLE" --notes-file release-notes.md "${flags[@]}"
+
+      - name: Disk usage
+        if: always()
+        run: df -h /

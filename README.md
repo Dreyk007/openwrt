@@ -221,6 +221,16 @@ Subsequent builds:
 ./build.sh -j4    # custom number of parallel jobs
 ```
 
+### Build and Release with GitHub Actions
+The workflow [`.github/workflows/build-ax3200.yml`](.github/workflows/build-ax3200.yml) runs `build.sh --install-deps` on a GitHub-hosted runner (Ubuntu 26.04 by default) and publishes the files of `bin/targets/mediatek/mt7622/` — the same images, `sha256sums` and buildinfo files as a local build — as a GitHub release. It only runs on demand: *Actions → Build AX3200 firmware → Run workflow*. Options:
+* **release tag** — empty for the next `v<OpenWrt version>-ax3200-r<N>`;
+* **pre-release** — publish the release as a pre-release;
+* **runner image** — `ubuntu-26.04`, or `ubuntu-24.04` as a fallback.
+
+A full build takes a few hours on the 4-core runner; the source downloads (`dl/`) are cached between runs. If the build fails, its log is attached to the run as the `build-log` artifact.
+
+> The repository also carries OpenWrt's own CI workflows (`kernel.yml`, `packages.yml`, `toolchain.yml`, `github-release.yml`, …). They are meant for openwrt/openwrt: after enabling Actions in the fork, disable them (*Actions → workflow → ⋯ → Disable workflow*, or `gh workflow disable <file>`), otherwise pushes and `v*` tags trigger them.
+
 ### Manual Build
 ```bash
 # 1. Update and install package feeds
