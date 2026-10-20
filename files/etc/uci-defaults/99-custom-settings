@@ -43,16 +43,10 @@ if [ -f /etc/config/luci_statistics ]; then
 	uci -q commit luci_statistics
 fi
 
-# Enable Receive Packet Steering (RPS + RFS with 128 flows)
+# Enable packet steering: pins threaded NAPI (mtk_eth, mt76) to CPUs and sets up RPS + RFS with 128 flows
 uci set network.globals.packet_steering='1'
 uci set network.globals.steering_flows='128'
 uci -q commit network
-
-# Enable hardware IRQ balancing across CPU cores
-if uci -q get irqbalance.irqbalance >/dev/null; then
-	uci set irqbalance.irqbalance.enabled='1'
-	uci -q commit irqbalance
-fi
 
 # Set ZRAM size and compression algorithm to lz4 (lowest latency for Cortex-A53)
 uci set system.@system[0].zram_size_mb='120'
