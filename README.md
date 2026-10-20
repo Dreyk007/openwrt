@@ -52,13 +52,14 @@ The goal of the build is **line-rate 1 Gbps wired and Wi-Fi 6 throughput, low la
 * **Sysctl tuning** (`files/etc/sysctl.d/99-bbr.conf`):
   * **TCP BBR**, `fq_codel` and TCP Fast Open (`tcp_fastopen=3`). They apply to TCP connections terminated on the router itself (LuCI, DoH proxy, `iperf3` server, package downloads), not to traffic forwarded for LAN clients. `fq_codel` is the OpenWrt default qdisc anyway.
   * Larger conntrack table (`nf_conntrack_max=32768`) and adjusted TCP/UDP timeouts for P2P and gaming.
+  * Global RFS socket flow table (`net.core.rps_sock_flow_entries=1024`). OpenWrt's packet steering only sets the per-queue flow count (`steering_flows`); without this table RFS stays inactive. It affects only traffic terminated on the router itself.
 * **Stealth firewall:** `input`/`forward` policies of the defaults and the `wan` zone are `DROP` instead of `REJECT`, plus `drop_invalid='1'`.
 * **LAN NTP server** (`system.ntp.enable_server='1'`).
 * **`zram-swap` 120 MB with `lz4`** (`CONFIG_KERNEL_ZRAM_DEF_COMP_LZ4=y`) and `vm.swappiness=100`, `vm.page-cluster=0`, `vm.vfs_cache_pressure=50`.
 * **Services are restarted indefinitely** after crashes (procd `respawn_retry='0'`); `https-dns-proxy` tolerates WAN reconnects (`conn_loss_time='30'`).
 
 ### 6. How the Defaults Are Applied (`99-custom-settings`)
-`uci-defaults` scripts run on the first boot after **every** flash, including a sysupgrade that keeps settings. `files/etc/uci-defaults/99-custom-settings` applies the settings from sections 2 and 5 **only once per configuration** and stores a marker in `/etc/config/ax3200`. Your own changes (for example HFO disabled in favour of SQM) are therefore preserved across upgrades. To re-apply the build defaults:
+`uci-defaults` scripts run on the first boot after **every** flash, including a sysupgrade that keeps settings. `files/etc/uci-defaults/99-custom-settings` applies the settings from sections 2 and 5 and the DoH and statistics defaults (see [Pre-installed packages](#pre-installed-packages)) **only once per configuration** and stores a marker in `/etc/config/ax3200`. Your own changes (for example HFO disabled in favour of SQM) are therefore preserved across upgrades. To re-apply the build defaults:
 ```sh
 uci -q delete ax3200.defaults && uci commit ax3200
 sh /rom/etc/uci-defaults/99-custom-settings
@@ -67,8 +68,10 @@ reboot
 
 ### 7. Official Package Repository Compatibility (`vermagic` + `apk`)
 * `vermagic_update.sh` downloads the kernel `vermagic` of the official OpenWrt 25.12.6 release (`685dcedeed3538a4cc670fc3fd59eac1`) and `scripts/getvermagic.sh` builds the kernel with it, so `kmod-*` packages from the official repository install without `vermagic` mismatch errors.
+* **The kernel configuration matches the official one.** A matching `vermagic` is not enough on its own: an official module only works if every kernel structure it uses has the same layout. The official buildbot builds with `CONFIG_ALL_KMODS=y` and without `KALLSYMS`, which changes `struct module`, `net_device`, `struct net` and `sk_buff`. This build does the same (`CONFIG_ALL_KMODS=y`, `# CONFIG_KERNEL_KALLSYMS is not set`), so its kernel `.config` differs from the one in the official SDK only in the GCC version, the `schedutil` default governor and the zram compression backends — none of them affects the module ABI.
+* **Verified on the device:** the official `kmod-dummy` and `kmod-wireguard` (with the NEON-accelerated ChaCha20/Poly1305 modules) load and work; a WireGuard tunnel carried ~2 GiB at 530–600 Mbit/s without kernel errors.
+* `ALL_KMODS` only builds all kernel modules into `bin/`; the firmware contains just the selected ones. Without `KALLSYMS` the kernel is ~260 KiB smaller in flash and ~0.7 MiB smaller in RAM, and kernel oops traces show addresses instead of function names (as in official images).
 * Packages are managed with OpenWrt 25.12's native **`apk`** (`apk-mbedtls`) and `luci-app-package-manager`.
-* Note: the kernel of this build is compiled with GCC 15 and a slightly different configuration (`schedutil`) than the official one. Matching `vermagic` only lets the modules load; commonly used modules work, but binary compatibility of every official kmod is not guaranteed.
 
 ---
 
@@ -96,7 +99,7 @@ The choice is kept across sysupgrades (see [section 6](#6-how-the-defaults-are-a
 
 ## Pre-installed Packages
 * **Web UI:** `luci`, `luci-ssl`, full Russian and English localization (`CONFIG_LUCI_LANG_ru=y`), `Bootstrap`, `OpenWrt-2020` and `Material` themes.
-* **Encrypted DNS (DoH, HTTP/2 & HTTP/3):** `https-dns-proxy` + `luci-app-https-dns-proxy` (Cloudflare and Google out of the box).
+* **Encrypted DNS (DoH, HTTP/2 & HTTP/3):** `https-dns-proxy` + `luci-app-https-dns-proxy` (Cloudflare and Google out of the box). Clients are not forced to use the router's DNS (`force_dns='0'`), so client-side encrypted DNS such as Android Private DNS (DoT) keeps working.
 * **SQM / CAKE QoS:** `luci-app-sqm` (`sqm-scripts`, `kmod-sched-cake`) — installed but **disabled** by default.
 * **Home network services:** `luci-app-upnp` (`miniupnpd-nftables`), `luci-app-ddns`, `luci-app-wol` (`etherwake`), `luci-app-watchcat`, `luci-app-wifischedule`, `luci-app-usteer` (802.11k/v/r roaming controller), `luci-app-uhttpd`.
 * **Monitoring and diagnostics:** `luci-app-nlbwmon` (per-client traffic accounting), `luci-app-statistics` (`collectd` graphs of CPU load and frequency, RAM, `br-lan`/`wan`, Wi-Fi, conntrack, hardware sensors and the MT7915E temperature), `luci-app-ttyd` (web terminal), CLI tools `htop`, `nano`, `curl`, `iperf3`, `ethtool`, `tcpdump-mini`, `bind-dig`, `mtr-nojson`.
@@ -175,6 +178,8 @@ The repository root contains the seed configuration [`ax3200.config`](ax3200.con
 ### Automated Build with `build.sh`
 [`build.sh`](build.sh) installs the build dependencies (optional, `apt`), updates the feeds, applies `ax3200.config`, synchronizes the kernel `vermagic` (the build stops if this fails), compiles the firmware, extracts `sysupgrade.ubi` (checking the `factory.bin` layout) and writes `sha256sums`.
 
+Because of `CONFIG_ALL_KMODS=y` (see [section 7](#7-official-package-repository-compatibility-vermagic--apk)) all ~1100 kernel module packages are built: the first build takes noticeably longer and `bin/` grows to ~140 MB, while the firmware contains only the selected modules. `kmod-rtl8812au-ct` is excluded because it does not build with GCC 15 (the AX6S has no USB port).
+
 On a fresh Ubuntu 24.04 / 26.04 LTS or Debian system:
 ```bash
 git clone -b xq-25.12 https://github.com/Dreyk007/openwrt.git
@@ -208,7 +213,7 @@ make -j$(nproc)
 > **Note:** unlike the Linux kernel, `make defconfig` in OpenWrt does **not** reset `.config` to defaults — it expands the short seed copied to `.config` with all dependent symbols.
 
 ### Changing the Configuration
-Edit the configuration with `make menuconfig` and save the result back as a seed — do not edit `ax3200.config` by hand:
+Edit the configuration with `make menuconfig` and save the result back as a seed — do not edit `ax3200.config` by hand. Keep `CONFIG_ALL_KMODS=y` and `# CONFIG_KERNEL_KALLSYMS is not set`: they are required for official kmod compatibility.
 ```bash
 cp ax3200.config .config && make defconfig
 make menuconfig
