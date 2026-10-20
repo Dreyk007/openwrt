@@ -11,7 +11,11 @@ into prev_* before they are lost:
 - mtk_flow_entry_update() folds them when it finds the flow unbound, but
   keeps entry->hash, so every following stats poll adds them again;
 - __mtk_ppe_check_skb() rebinds a flow, or drops the hash of a flow that
-  no longer matches, without folding the counters first.
+  no longer matches, without folding the counters first;
+- when mtk_flow_entry_update() finds the flow unbound, it only folds the
+  software copy of the counters, not what the MIB counter of the entry
+  gathered since the last stats poll. The PPE unbinds an entry by itself
+  e.g. after a TCP FIN, so the last seconds of every connection were lost.
 
 In the second case the total goes backwards. mtk_flow_offload_stats()
 reports "entry->packets - packets" as a u64 delta, and nf_ct_acct_add()
@@ -19,15 +23,15 @@ truncates it to 32 bits, so conntrack (and nlbwmon on top of it) gets
 almost 2^32 phantom packets and bytes added per occurrence.
 
 Fold the counters exactly once, before the hash is dropped or rebound,
-and detach the flow from the hardware entry (entry->hash = 0xffff), as
-upstream does on unbind. Also never report a decreasing total as a
-positive delta.
+after reading the MIB counter of the entry, and detach the flow from the
+hardware entry (entry->hash = 0xffff), as upstream does on unbind.
+Also never report a decreasing total as a positive delta.
 
 Signed-off-by: Dreyk <dreyksmail@gmail.com>
 ---
 --- a/drivers/net/ethernet/mediatek/mtk_ppe.c
 +++ b/drivers/net/ethernet/mediatek/mtk_ppe.c
-@@ -559,6 +559,30 @@
+@@ -559,6 +559,35 @@
  		return now - timestamp;
  }
  
@@ -37,6 +41,11 @@ Signed-off-by: Dreyk <dreyksmail@gmail.com>
 + * to happen exactly once per bind, and before a new bind of the same hash
 + * resets the counters in __mtk_foe_entry_commit(): otherwise the totals either
 + * count the same packets again or go backwards.
++ *
++ * The MIB counter of the entry is read first: it still holds the traffic since
++ * the last stats poll, e.g. when the PPE unbound the entry by itself after a
++ * TCP FIN. No other flow can have been bound to the hash meanwhile, as that
++ * detaches this flow first.
 + */
 +static void
 +mtk_flow_entry_save_acct(struct mtk_ppe *ppe, struct mtk_flow_entry *entry)
@@ -46,7 +55,7 @@ Signed-off-by: Dreyk <dreyksmail@gmail.com>
 +	if (entry->hash == 0xffff)
 +		return;
 +
-+	acct = mtk_ppe_acct_data(ppe, entry->hash);
++	acct = mtk_ppe_mib_entry_read(ppe, entry->hash);
 +	if (acct) {
 +		entry->prev_packets += acct->packets;
 +		entry->prev_bytes += acct->bytes;
@@ -58,7 +67,7 @@ Signed-off-by: Dreyk <dreyksmail@gmail.com>
  static bool
  mtk_flow_entry_update(struct mtk_ppe *ppe, struct mtk_flow_entry *entry,
  		      u64 *packets, u64 *bytes)
-@@ -580,11 +604,7 @@
+@@ -580,11 +609,7 @@
  	if (!mtk_flow_entry_match(ppe->eth, entry, &foe, len) ||
  	    FIELD_GET(MTK_FOE_IB1_STATE, foe.ib1) != MTK_FOE_STATE_BIND) {
  		acct = mtk_ppe_acct_data(ppe, hash);
@@ -71,7 +80,7 @@ Signed-off-by: Dreyk <dreyksmail@gmail.com>
  		goto out;
  	}
  
-@@ -805,11 +825,14 @@
+@@ -805,11 +830,14 @@
  	hlist_for_each_entry_safe(entry, n, head, list) {
  		if (found ||
  		    !mtk_flow_entry_match(ppe->eth, entry, &foe, entry_len)) {
