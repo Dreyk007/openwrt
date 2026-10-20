@@ -1,0 +1,63 @@
+From: Dreyk <dreyksmail@gmail.com>
+Date: Wed, 21 Oct 2026 01:00:00 +0300
+Subject: [PATCH] netfilter: flowtable: fetch hardware counters before removing a flow
+
+The counters of hardware offloaded flows are added to conntrack by the
+stats work, which nf_flow_offload_stats() queues only after a tenth of
+the flow timeout has passed since the last update, i.e. about every 3 s
+with the default nf_flowtable_tcp_timeout of 30 s. When a flow is torn
+down, e.g. on a TCP FIN or RST, flow_offload_work_del() removes the
+hardware entries without fetching their counters, so the traffic since
+the last poll never reaches conntrack.
+
+At gigabit speeds that is easily a hundred megabytes per connection: a
+300 MiB HTTPS download that closes its connection right away was
+accounted at 69-84% by nlbwmon on a MT7622, and at 105% (payload plus
+headers) when the connection stayed open for a few seconds first.
+
+Fetch the counters once more in the delete work before removing the
+hardware entries. The flow and its conntrack entry are still referenced
+there: NF_FLOW_HW_DEAD is only set after the worker is done.
+
+Signed-off-by: Dreyk <dreyksmail@gmail.com>
+---
+--- a/net/netfilter/nf_flow_table_offload.c
++++ b/net/netfilter/nf_flow_table_offload.c
+@@ -987,14 +987,6 @@
+ 	nf_flow_offload_destroy(flow_rule);
+ }
+ 
+-static void flow_offload_work_del(struct flow_offload_work *offload)
+-{
+-	clear_bit(IPS_HW_OFFLOAD_BIT, &offload->flow->ct->status);
+-	flow_offload_tuple_del(offload, FLOW_OFFLOAD_DIR_ORIGINAL);
+-	if (test_bit(NF_FLOW_HW_BIDIRECTIONAL, &offload->flow->flags))
+-		flow_offload_tuple_del(offload, FLOW_OFFLOAD_DIR_REPLY);
+-}
+-
+ static void flow_offload_tuple_stats(struct flow_offload_work *offload,
+ 				     enum flow_offload_tuple_dir dir,
+ 				     struct flow_stats *stats)
+@@ -1031,6 +1023,22 @@
+ 	}
+ }
+ 
++static void flow_offload_work_del(struct flow_offload_work *offload)
++{
++	/*
++	 * Stats are only polled every few seconds: fetch the counters of the
++	 * hardware entries one last time before they are removed, so that the
++	 * traffic since the last poll is not lost for conntrack accounting.
++	 */
++	if (offload->flowtable->flags & NF_FLOWTABLE_COUNTER)
++		flow_offload_work_stats(offload);
++
++	clear_bit(IPS_HW_OFFLOAD_BIT, &offload->flow->ct->status);
++	flow_offload_tuple_del(offload, FLOW_OFFLOAD_DIR_ORIGINAL);
++	if (test_bit(NF_FLOW_HW_BIDIRECTIONAL, &offload->flow->flags))
++		flow_offload_tuple_del(offload, FLOW_OFFLOAD_DIR_REPLY);
++}
++
+ static void flow_offload_work_handler(struct work_struct *work)
+ {
+ 	struct flow_offload_work *offload;
