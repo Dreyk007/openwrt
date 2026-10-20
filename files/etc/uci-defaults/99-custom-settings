@@ -61,9 +61,11 @@ uci set system.@service[0].respawn_timeout='5'
 uci set system.@service[0].respawn_retry='0'
 uci -q commit system
 
-# Configure https-dns-proxy integration with dnsmasq
+# Configure https-dns-proxy integration with dnsmasq. Do not force clients to the
+# router's DNS: force_dns also rejects DoT (853), which breaks Android Private DNS.
 if uci -q get https-dns-proxy.config >/dev/null; then
 	uci set https-dns-proxy.config.dnsmasq_config_update='*'
+	uci set https-dns-proxy.config.force_dns='0'
 	uci set https-dns-proxy.config.conn_loss_time='30'
 	uci -q commit https-dns-proxy
 fi
