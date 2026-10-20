@@ -11,6 +11,8 @@ The goal of this build is to deliver **line-rate 1 Gbps wired & Wi-Fi 6 throughp
 ## Key Changes & Hardware Optimizations for Xiaomi AX3200 / Redmi AX6S
 
 ### 1. Low-Level CPU Architecture Optimizations (`ARM Cortex-A53`)
+* **Next-Gen OpenWrt GCC 15.2.0 Toolchain (`CONFIG_GCC_USE_VERSION_15=y`):**
+  Upgrades the cross-compilation toolchain from GCC 14.3 to **GCC 15.2.0** (`CONFIG_GCC_VERSION="15.2.0"`). Leverages improved GIMPLE interprocedural optimization (IPO), C23 language support, and superior instruction scheduling for the ARM Cortex-A53 in-order pipeline, yielding a ~241 KB footprint reduction in compressed SquashFS.
 * **Compiler Flags (`-O2 -pipe -mcpu=cortex-a53+crypto+crc`):**
   Upstream OpenWrt builds default to `-Os` (optimize for size), which disables function, loop, and jump alignment (`-falign-functions`, `-falign-loops`, `-falign-jumps`). On the dual-core **MediaTek MT7622B (Cortex-A53 @ 1.35 GHz)** with its in-order execution pipeline, unaligned branch targets incur extra L1 instruction cache misses. Because the AX3200 has 128 MB of NAND flash, this build switches to **`-O2`** and explicitly enables hardware **ARMv8 Crypto Extensions (AES, SHA1/SHA2, GHASH)** and **CRC32** instructions.
 * **Global Link-Time Optimization (`CONFIG_USE_LTO=y`):**
