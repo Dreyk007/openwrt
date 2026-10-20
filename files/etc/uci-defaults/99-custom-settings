@@ -7,7 +7,7 @@
 # configuration: a marker is stored in /etc/config/ax3200, which sysupgrade
 # keeps together with the rest of /etc/config. This way user changes, e.g.
 # disabling flow offloading in favour of SQM, survive firmware upgrades.
-# Only the LuCI theme migration below runs on every flash.
+# Only the LuCI theme migration and the collectd include below run on every flash.
 #
 # Wi-Fi radio defaults are set by /etc/uci-defaults/77_wireless.
 
@@ -25,6 +25,14 @@ if ! theme_ok "$(uci -q get luci.main.mediaurlbase)" && theme_ok /luci-static/fo
 	uci set luci.main.mediaurlbase='/luci-static/footstrap'
 fi
 uci -q commit luci
+
+# collectd, on every flash: include /etc/collectd/conf.d (WAN hardware port counters via
+# the ethstat plugin, which also see offloaded traffic) unless an Include is set already
+if [ -d /etc/collectd/conf.d ] && [ -f /etc/config/luci_statistics ] && \
+   [ -z "$(uci -q get luci_statistics.collectd.Include)" ]; then
+	uci set luci_statistics.collectd.Include='/etc/collectd/conf.d'
+	uci -q commit luci_statistics
+fi
 
 [ "$(uci -q get ax3200.defaults.applied)" = "1" ] && exit 0
 

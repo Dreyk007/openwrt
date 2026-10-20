@@ -59,7 +59,7 @@ The goal of the build is **line-rate 1 Gbps wired and Wi-Fi 6 throughput, low la
 * **Services are restarted indefinitely** after crashes (procd `respawn_retry='0'`); `https-dns-proxy` tolerates WAN reconnects (`conn_loss_time='30'`).
 
 ### 6. How the Defaults Are Applied (`99-custom-settings`)
-`uci-defaults` scripts run on the first boot after **every** flash, including a sysupgrade that keeps settings. `files/etc/uci-defaults/99-custom-settings` applies the settings from sections 2 and 5 and the DoH, statistics and LuCI theme defaults (see [Pre-installed packages](#pre-installed-packages)) **only once per configuration** and stores a marker in `/etc/config/ax3200`. Your own changes (for example HFO disabled in favour of SQM) are therefore preserved across upgrades. Only the LuCI theme migration (dropping removed themes) runs on every flash. To re-apply the build defaults:
+`uci-defaults` scripts run on the first boot after **every** flash, including a sysupgrade that keeps settings. `files/etc/uci-defaults/99-custom-settings` applies the settings from sections 2 and 5 and the DoH, statistics and LuCI theme defaults (see [Pre-installed packages](#pre-installed-packages)) **only once per configuration** and stores a marker in `/etc/config/ax3200`. Your own changes (for example HFO disabled in favour of SQM) are therefore preserved across upgrades. Only the LuCI theme migration (dropping removed themes) and enabling the collectd include for the ethstat graph run on every flash. To re-apply the build defaults:
 ```sh
 uci -q delete ax3200.defaults && uci commit ax3200
 sh /rom/etc/uci-defaults/99-custom-settings
@@ -130,7 +130,7 @@ wifi reload
 * **Encrypted DNS (DoH, HTTP/2 & HTTP/3):** `https-dns-proxy` + `luci-app-https-dns-proxy` (Cloudflare and Google out of the box). Clients are not forced to use the router's DNS (`force_dns='0'`), so client-side encrypted DNS such as Android Private DNS (DoT) keeps working.
 * **SQM / CAKE QoS:** `luci-app-sqm` (`sqm-scripts`, `kmod-sched-cake`) — installed but **disabled** by default.
 * **Home network services:** `luci-app-upnp` (`miniupnpd-nftables`), `luci-app-ddns`, `luci-app-wol` (`etherwake`), `luci-app-watchcat`, `luci-app-wifischedule`, `luci-app-uhttpd`.
-* **Monitoring and diagnostics:** `luci-app-nlbwmon` (per-client traffic accounting), `luci-app-statistics` (`collectd` graphs of CPU load and frequency, RAM, `br-lan`/`wan`, Wi-Fi, conntrack, hardware sensors and the MT7915E temperature), `luci-app-ttyd` (web terminal), CLI tools `htop`, `nano`, `curl`, `iperf3`, `ethtool`, `tcpdump-mini`, `bind-dig`, `mtr-nojson`.
+* **Monitoring and diagnostics:** `luci-app-nlbwmon` (per-client traffic accounting), `luci-app-statistics` (`collectd` graphs of CPU load and frequency, RAM, `br-lan`/`wan`, Wi-Fi, conntrack, hardware sensors and the MT7915E temperature, plus the WAN port's hardware byte counters via `collectd-mod-ethstat`, graph *Ethernet (hardware counters)* — unlike the interface graphs, which only see traffic handled by the CPU, it includes traffic forwarded by hardware flow offloading), `luci-app-ttyd` (web terminal), CLI tools `htop`, `nano`, `curl`, `iperf3`, `ethtool`, `tcpdump-mini`, `bind-dig`, `mtr-nojson`.
 
 ---
 
