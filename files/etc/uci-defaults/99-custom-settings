@@ -1,35 +1,16 @@
 #!/bin/sh
+#
+# Default settings of the Xiaomi AX3200 / Redmi AX6S build.
+#
+# uci-defaults scripts run on the first boot after every flash, including a
+# sysupgrade that keeps settings. These defaults are applied only once per
+# configuration: a marker is stored in /etc/config/ax3200, which sysupgrade
+# keeps together with the rest of /etc/config. This way user changes, e.g.
+# disabling flow offloading in favour of SQM, survive firmware upgrades.
+#
+# Wi-Fi radio defaults are set by /etc/uci-defaults/77_wireless.
 
-# Ensure /etc/config/wireless is generated after mt76 kernel modules are loaded
-[ -x /sbin/wifi ] && /sbin/wifi config
-
-# Configure radio defaults only if wireless is not already configured (e.g. from backup/sysupgrade)
-for num in 0 1; do
-	if [ -z "$(uci -q get wireless.default_radio$num.key)" ]; then
-		band="$(uci -q get wireless.radio$num.band)"
-		if [ "$band" = "2g" ]; then
-			uci set wireless.radio$num.disabled='0'
-			uci set wireless.radio$num.country='PA'
-			uci set wireless.radio$num.channel='1'
-			uci set wireless.radio$num.htmode='HT20'
-			uci set wireless.radio$num.cell_density='0'
-			uci set wireless.default_radio$num.disabled='0'
-		elif [ "$band" = "5g" ]; then
-			uci set wireless.radio$num.disabled='0'
-			uci set wireless.radio$num.country='PA'
-			uci set wireless.radio$num.channel='36'
-			uci set wireless.radio$num.htmode='HE80'
-			uci set wireless.radio$num.cell_density='0'
-			uci set wireless.radio$num.noscan='1'
-			uci set wireless.default_radio$num.disabled='0'
-			uci set wireless.default_radio$num.wnm_sleep_mode='1'
-			uci set wireless.default_radio$num.wnm_sleep_mode_no_keys='1'
-			uci set wireless.default_radio$num.dtim_period='3'
-			uci set wireless.default_radio$num.ocv='0'
-		fi
-	fi
-done
-uci -q commit wireless
+[ "$(uci -q get ax3200.defaults.applied)" = "1" ] && exit 0
 
 # Enable Hardware Flow Offloading (MediaTek PPE + WED)
 uci set firewall.@defaults[0].flow_offloading='1'
@@ -79,7 +60,7 @@ uci set system.@system[0].zram_comp_algo='lz4'
 
 # Configure procd service respawn defaults (infinite retry on crash loop)
 if ! uci -q get system.@service[0] >/dev/null; then
-	uci add system service
+	uci add system service >/dev/null
 fi
 uci set system.@service[0].respawn_threshold='3600'
 uci set system.@service[0].respawn_timeout='5'
@@ -93,9 +74,10 @@ if uci -q get https-dns-proxy.config >/dev/null; then
 	uci -q commit https-dns-proxy
 fi
 
-# Enforce schedutil CPU frequency governor
-for gov in /sys/devices/system/cpu/cpufreq/policy*/scaling_governor; do
-	[ -f "$gov" ] && echo schedutil > "$gov" 2>/dev/null
-done
+# Remember that the defaults have been applied to this configuration
+touch /etc/config/ax3200
+uci set ax3200.defaults='defaults'
+uci set ax3200.defaults.applied='1'
+uci -q commit ax3200
 
 exit 0
