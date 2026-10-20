@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Automated build script for Xiaomi AX3200 / Redmi AX6S OpenWrt firmware
-# (MediaTek MT7622, aarch64_cortex-a53, GCC 14, musl libc)
+# (MediaTek MT7622, aarch64_cortex-a53, GCC 15.2, musl libc)
 #
 
 set -euo pipefail
@@ -135,15 +135,16 @@ cp "$CONFIG_SEED" .config
 make defconfig
 success "Configuration applied successfully."
 
-# 4. Synchronize kernel vermagic with official OpenWrt repository (if script exists)
-if [ -f "./vermagic_update.sh" ]; then
-    info "Synchronizing kernel vermagic with official OpenWrt repository (mediatek mt7622)..."
-    if ./vermagic_update.sh mediatek mt7622; then
-        success "Kernel vermagic synchronized with official repository."
-    else
-        warn "vermagic_update.sh failed or offline; proceeding with existing vermagic list."
-    fi
+# 4. Synchronize kernel vermagic with official OpenWrt repository.
+# Without a valid vermagic list the firmware silently gets its own vermagic and
+# official kmod-* packages can no longer be installed, so treat failure as fatal.
+info "Synchronizing kernel vermagic with official OpenWrt repository (mediatek mt7622)..."
+if ! ./vermagic_update.sh mediatek mt7622; then
+    error "Cannot synchronize kernel vermagic with the official repository."
+    error "Check network access to downloads.openwrt.org and re-run the build."
+    exit 1
 fi
+success "Kernel vermagic synchronized with official repository."
 
 # 5. Pre-download source packages
 info "Pre-downloading package sources using $JOBS parallel jobs..."
@@ -169,7 +170,13 @@ FACTORY_BIN="$(find "$TARGET_DIR" -name "openwrt-*-factory.bin" | head -n 1)"
 UBI_IMG="$TARGET_DIR/openwrt-mediatek-mt7622-xiaomi_redmi-router-ax6s-sysupgrade.ubi"
 
 if [ -n "$FACTORY_BIN" ] && [ -f "$FACTORY_BIN" ]; then
+    # factory.bin = ubi-loader FIT padded to 512 KiB (size of the "ubi-loader"
+    # partition) + UBI image, see Device/xiaomi_redmi-router-ax6s in mt7622.mk
     info "Extracting raw sysupgrade.ubi from factory.bin (offset 512KB)..."
+    if [ "$(dd if="$FACTORY_BIN" bs=1 skip=524288 count=4 status=none)" != "UBI#" ]; then
+        error "No UBI image at offset 512KB in $FACTORY_BIN (factory.bin layout changed?)"
+        exit 1
+    fi
     dd if="$FACTORY_BIN" of="$UBI_IMG" bs=512K skip=1 status=none
     success "Created $UBI_IMG"
 else
