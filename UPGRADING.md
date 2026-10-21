@@ -76,7 +76,8 @@ git log --oneline --no-merges $BASE..xq-25.12 --author=remittor --author='David 
 |---|---|
 | `target/linux/mediatek/mt7622/config-6.12` | `schedutil` as the default CPU frequency governor |
 | `vermagic_update.sh` | Added by the remittor vermagic patch; rewritten here: atomic download, validation, kernel version check |
-| `target/linux/mediatek/patches-6.12/970-net-ethernet-mtk_ppe-fix-flow-accounting-on-unbind-and-rebind.patch` | New kernel patch on top of OpenWrt's `generic/pending-6.12/736-04-net-ethernet-mediatek-fix-ppe-flow-accounting-for-L2.patch`: PPE flow counters on unbind/rebind |
+| `target/linux/mediatek/patches-6.12/970-net-ethernet-mtk_ppe-fix-flow-accounting-on-unbind-and-rebind.patch` | New kernel patch on top of OpenWrt's `generic/pending-6.12/736-04-net-ethernet-mediatek-fix-ppe-flow-accounting-for-L2.patch`: PPE flow counters on unbind/rebind, reading the MIB counter before a flow is detached |
+| `target/linux/mediatek/patches-6.12/971-netfilter-flowtable-fetch-hardware-counters-before-removing-a-flow.patch` | New kernel patch for `net/netfilter/nf_flow_table_offload.c`: fetch the hardware counters of a flow once more before its hardware entries are removed |
 | `target/linux/mediatek/mt7622/base-files/etc/init.d/bootcount` | `xiaomi,redmi-router-ax6s` case: NVRAM anti-brick flags |
 | `package/base-files/Makefile` | `CONFIG_PACKAGE_MAC80211_*` in `PKG_CONFIG_DEPENDS` (on top of the remittor patch) |
 | `package/base-files/files/etc/uci-defaults/77_wireless` | Band-aware radio defaults (file added by the remittor patch) |
@@ -155,7 +156,7 @@ No output means nothing changed. Otherwise review the difference (renamed/remove
 ./build.sh
 ```
 
-The build stops if the vermagic synchronization fails. With `CONFIG_ALL_KMODS=y` all ~1100 kmods are built, so the first build after a release update takes longer. If an optional (`=m`) kmod fails to build, exclude it in the seed (as done for `kmod-rtl8812au-ct`) instead of ignoring the error. If a kernel patch no longer applies after a kernel version bump (e.g. `970-...mtk_ppe-fix-flow-accounting...`), refresh it with `make target/linux/refresh` and review the result.
+The build stops if the vermagic synchronization fails. With `CONFIG_ALL_KMODS=y` all ~1100 kmods are built, so the first build after a release update takes longer. If an optional (`=m`) kmod fails to build, exclude it in the seed (as done for `kmod-rtl8812au-ct`) instead of ignoring the error. If a kernel patch no longer applies after a kernel version bump (e.g. `970-...mtk_ppe-fix-flow-accounting...` or `971-netfilter-flowtable-...`), refresh it with `make target/linux/refresh` and review the result.
 
 ### 2.7. Check kernel configuration parity with the official build
 
@@ -258,6 +259,7 @@ A new series can change any of the underlying facts. Check each item before buil
 9. **Sysctl names** in `99-bbr.conf` (`sysctl -a` on the device after flashing).
 10. **NVRAM anti-brick:** the U-Boot variables used by `bootcount` are still the right ones.
 11. **PPE accounting patch (`970-...`):** check whether `generic/pending-*/736-04-net-ethernet-mediatek-fix-ppe-flow-accounting-for-L2.patch` still exists and whether upstream reworked the PPE accounting. Refresh the patch, or drop it if the bug is fixed; verify with a large download through the router that `nlbw -c show` grows by the downloaded amount and never jumps by ~4 GB.
+12. **Flowtable teardown patch (`971-...`):** check whether upstream `flow_offload_work_del()` in `net/netfilter/nf_flow_table_offload.c` now fetches the flow stats itself; drop the patch then, otherwise refresh it. It works together with the MIB read in `970-...`: after a TCP FIN the PPE unbinds the entry by itself, so the final poll has to read the hardware counter of an unbound entry. Verify with downloads that close their connection right after the transfer (e.g. `curl -o /dev/null` of a 300 MiB file, and 30 x 10 MiB on separate connections): after ~40 s (`nlbwmon` refresh interval) `nlbw -c show` must have grown by the downloaded amount plus ~5% headers, not by 50-85% (300 MiB) or ~4% (10 MiB) of it.
 
 ### 3.7. Build, flash, verify and publish
 
