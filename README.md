@@ -33,6 +33,7 @@ The goal of the build is **line-rate 1 Gbps wired and Wi-Fi 6 throughput, low la
   * `target/linux/mediatek/patches-6.12/971-netfilter-flowtable-fetch-hardware-counters-before-removing-a-flow.patch` makes the kernel read the hardware counters of a flow one last time before removing it; otherwise they are only polled every ~3 s.
 
   Without them, connections that close right after a transfer were undercounted: a 300 MiB download was counted at 50–86%, 30 downloads of 10 MiB at 4%. With them every test is counted at 105% of the payload (the payload plus TCP/IP headers).
+* **Interface counters with HFO:** offloaded traffic bypasses the CPU, so the software counters of the network interfaces never see it. The backported kernel patches `target/linux/generic/backport-6.12/799-0*-net-dsa-mt7530-*.patch` (`.get_stats64` from Linux 6.16 and its fix from 7.1) report the hardware counters of the switch ports as the statistics of `wan` and `lan1`–`lan3` instead, so the `wan` graph in *Statistics*, the LuCI realtime traffic graphs and `ip -s link` show the real traffic. `br-lan` (offloaded traffic never passes the software bridge) and the Wi-Fi interfaces (WED) still count only traffic handled by the CPU.
 * HFO bypasses the Linux queueing layer, so it cannot be combined with SQM — see [SQM or hardware offloading?](#sqm-or-hardware-offloading).
 
 ### 3. NVRAM Anti-Brick Protection ("6 reboots → orange LED" fix)
@@ -64,7 +65,7 @@ The goal of the build is **line-rate 1 Gbps wired and Wi-Fi 6 throughput, low la
 * **Services are restarted indefinitely** after crashes (procd `respawn_retry='0'`); `https-dns-proxy` tolerates WAN reconnects (`conn_loss_time='30'`).
 
 ### 6. How the Defaults Are Applied (`99-custom-settings`)
-`uci-defaults` scripts run on the first boot after **every** flash, including a sysupgrade that keeps settings. `files/etc/uci-defaults/99-custom-settings` applies the settings from sections 2 and 5 and the DoH, statistics and LuCI theme defaults (see [Pre-installed packages](#pre-installed-packages)) **only once per configuration** and stores a marker in `/etc/config/ax3200`. Your own changes (for example HFO disabled in favour of SQM) are therefore preserved across upgrades. Only the LuCI theme migration (dropping removed themes) and enabling the collectd include for the ethstat graph run on every flash. To re-apply the build defaults:
+`uci-defaults` scripts run on the first boot after **every** flash, including a sysupgrade that keeps settings. `files/etc/uci-defaults/99-custom-settings` applies the settings from sections 2 and 5 and the DoH, statistics and LuCI theme defaults (see [Pre-installed packages](#pre-installed-packages)) **only once per configuration** and stores a marker in `/etc/config/ax3200`. Your own changes (for example HFO disabled in favour of SQM) are therefore preserved across upgrades. Only the LuCI theme migration (dropping removed themes) and removing the collectd include of older builds run on every flash. To re-apply the build defaults:
 ```sh
 uci -q delete ax3200.defaults && uci commit ax3200
 sh /rom/etc/uci-defaults/99-custom-settings
@@ -135,7 +136,7 @@ wifi reload
 * **Encrypted DNS (DoH, HTTP/2 & HTTP/3):** `https-dns-proxy` + `luci-app-https-dns-proxy` (Cloudflare and Google out of the box). Clients are not forced to use the router's DNS (`force_dns='0'`), so client-side encrypted DNS such as Android Private DNS (DoT) keeps working.
 * **SQM / CAKE QoS:** `luci-app-sqm` (`sqm-scripts`, `kmod-sched-cake`) — installed but **disabled** by default.
 * **Home network services:** `luci-app-upnp` (`miniupnpd-nftables`), `luci-app-ddns`, `luci-app-wol` (`etherwake`), `luci-app-watchcat`, `luci-app-wifischedule`, `luci-app-uhttpd`.
-* **Monitoring and diagnostics:** `luci-app-nlbwmon` (per-client traffic accounting), `luci-app-statistics` (`collectd` graphs of CPU load and frequency, RAM, `br-lan`/`wan`, Wi-Fi, conntrack, hardware sensors and the MT7915E temperature, plus the WAN port's hardware byte counters via `collectd-mod-ethstat`, graph *Ethernet (hardware counters)* — unlike the interface graphs, which only see traffic handled by the CPU, it includes traffic forwarded by hardware flow offloading), `luci-app-ttyd` (web terminal), CLI tools `htop`, `nano`, `curl`, `iperf3`, `ethtool`, `tcpdump-mini`, `bind-dig`, `mtr-nojson`.
+* **Monitoring and diagnostics:** `luci-app-nlbwmon` (per-client traffic accounting), `luci-app-statistics` (`collectd` graphs of CPU load and frequency, RAM, `br-lan`/`wan`, Wi-Fi, conntrack, hardware sensors and the MT7915E temperature; the `wan` graph includes offloaded traffic, see [Interface counters with HFO](#2-hardware-nat-and-wi-fi-6-acceleration-hfo--wed)), `luci-app-ttyd` (web terminal), CLI tools `htop`, `nano`, `curl`, `iperf3`, `ethtool`, `tcpdump-mini`, `bind-dig`, `mtr-nojson`.
 
 ---
 

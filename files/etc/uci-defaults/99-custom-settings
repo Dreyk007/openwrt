@@ -7,7 +7,7 @@
 # configuration: a marker is stored in /etc/config/ax3200, which sysupgrade
 # keeps together with the rest of /etc/config. This way user changes, e.g.
 # disabling flow offloading in favour of SQM, survive firmware upgrades.
-# Only the LuCI theme migration and the collectd include below run on every flash.
+# Only the LuCI theme migration and the collectd include cleanup below run on every flash.
 #
 # Wi-Fi radio defaults are set by /etc/uci-defaults/77_wireless.
 
@@ -26,11 +26,13 @@ if ! theme_ok "$(uci -q get luci.main.mediaurlbase)" && theme_ok /luci-static/fo
 fi
 uci -q commit luci
 
-# collectd, on every flash: include /etc/collectd/conf.d (WAN hardware port counters via
-# the ethstat plugin, which also see offloaded traffic) unless an Include is set already
-if [ -d /etc/collectd/conf.d ] && [ -f /etc/config/luci_statistics ] && \
-   [ -z "$(uci -q get luci_statistics.collectd.Include)" ]; then
-	uci set luci_statistics.collectd.Include='/etc/collectd/conf.d'
+# collectd, on every flash: older builds included /etc/collectd/conf.d for the ethstat WAN
+# graph, which the interface graphs make redundant now that the switch port counters include
+# offloaded traffic. Drop that include once the directory is gone, so that the configuration
+# does not keep pointing to nothing (collectd itself silently ignores a missing include).
+if [ "$(uci -q get luci_statistics.collectd.Include)" = "/etc/collectd/conf.d" ] && \
+   [ ! -d /etc/collectd/conf.d ]; then
+	uci -q delete luci_statistics.collectd.Include
 	uci -q commit luci_statistics
 fi
 

@@ -78,6 +78,7 @@ git log --oneline --no-merges $BASE..xq-25.12 --author=remittor --author='David 
 | `vermagic_update.sh` | Added by the remittor vermagic patch; rewritten here: atomic download, validation, kernel version check |
 | `target/linux/mediatek/patches-6.12/970-net-ethernet-mtk_ppe-fix-flow-accounting-on-unbind-and-rebind.patch` | New kernel patch on top of OpenWrt's `generic/pending-6.12/736-04-net-ethernet-mediatek-fix-ppe-flow-accounting-for-L2.patch`: PPE flow counters on unbind/rebind, reading the MIB counter before a flow is detached |
 | `target/linux/mediatek/patches-6.12/971-netfilter-flowtable-fetch-hardware-counters-before-removing-a-flow.patch` | New kernel patch for `net/netfilter/nf_flow_table_offload.c`: fetch the hardware counters of a flow once more before its hardware entries are removed |
+| `target/linux/generic/backport-6.12/799-0[1-7]-…-net-dsa-mt7530-….patch` | Backport of the upstream `mt7530` `.get_stats64` series (Linux 6.16) and its fix `07d995873960` (7.1): the switch's hardware port counters as the statistics of `wan` and `lan1`–`lan3`. Conflicts if OpenWrt backports the same commits |
 | `target/linux/mediatek/mt7622/base-files/etc/init.d/bootcount` | `xiaomi,redmi-router-ax6s` case: NVRAM anti-brick flags |
 | `package/base-files/Makefile` | `CONFIG_PACKAGE_MAC80211_*` in `PKG_CONFIG_DEPENDS` (on top of the remittor patch) |
 | `package/base-files/files/etc/uci-defaults/77_wireless` | Band-aware radio defaults (file added by the remittor patch) |
@@ -156,7 +157,7 @@ No output means nothing changed. Otherwise review the difference (renamed/remove
 ./build.sh
 ```
 
-The build stops if the vermagic synchronization fails. With `CONFIG_ALL_KMODS=y` all ~1100 kmods are built, so the first build after a release update takes longer. If an optional (`=m`) kmod fails to build, exclude it in the seed (as done for `kmod-rtl8812au-ct`) instead of ignoring the error. If a kernel patch no longer applies after a kernel version bump (e.g. `970-...mtk_ppe-fix-flow-accounting...` or `971-netfilter-flowtable-...`), refresh it with `make target/linux/refresh` and review the result.
+The build stops if the vermagic synchronization fails. With `CONFIG_ALL_KMODS=y` all ~1100 kmods are built, so the first build after a release update takes longer. If an optional (`=m`) kmod fails to build, exclude it in the seed (as done for `kmod-rtl8812au-ct`) instead of ignoring the error. If a kernel patch no longer applies after a kernel version bump (e.g. `970-...mtk_ppe-fix-flow-accounting...` or `971-netfilter-flowtable-...`), refresh it with `make target/linux/refresh` and review the result. If OpenWrt itself backports the `mt7530` `.get_stats64` commits, the `799-0*` patches no longer apply: drop ours.
 
 ### 2.7. Check kernel configuration parity with the official build
 
@@ -260,6 +261,7 @@ A new series can change any of the underlying facts. Check each item before buil
 10. **NVRAM anti-brick:** the U-Boot variables used by `bootcount` are still the right ones.
 11. **PPE accounting patch (`970-...`):** check whether `generic/pending-*/736-04-net-ethernet-mediatek-fix-ppe-flow-accounting-for-L2.patch` still exists and whether upstream reworked the PPE accounting. Refresh the patch, or drop it if the bug is fixed; verify with a large download through the router that `nlbw -c show` grows by the downloaded amount and never jumps by ~4 GB.
 12. **Flowtable teardown patch (`971-...`):** check whether upstream `flow_offload_work_del()` in `net/netfilter/nf_flow_table_offload.c` now fetches the flow stats itself; drop the patch then, otherwise refresh it. It works together with the MIB read in `970-...`: after a TCP FIN the PPE unbinds the entry by itself, so the final poll has to read the hardware counter of an unbound entry. Verify with downloads that close their connection right after the transfer (e.g. `curl -o /dev/null` of a 300 MiB file, and 30 x 10 MiB on separate connections): after ~40 s (`nlbwmon` refresh interval) `nlbw -c show` must have grown by the downloaded amount plus ~5% headers, not by 50-85% (300 MiB) or ~4% (10 MiB) of it.
+13. **`mt7530` port counters backport (`generic/backport-6.12/799-0*`):** kernels from 6.16 on have `.get_stats64`, so drop `799-01`…`799-06`. Keep `799-07` (or drop it too) depending on whether the new kernel already has `07d995873960` ("net: dsa: mt7530: fix .get_stats64 sleeping in atomic context", Linux 7.1, likely backported to 6.18.y stable): without it reading `/proc/net/dev` logs "BUG: sleeping function called from invalid context". Verify that `cat /sys/class/net/wan/statistics/rx_bytes` grows by the downloaded amount during an offloaded download and that `dmesg` stays clean.
 
 ### 3.7. Build, flash, verify and publish
 
