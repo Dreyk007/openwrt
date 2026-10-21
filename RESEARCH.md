@@ -79,7 +79,7 @@ The backport of the upstream `mt7530` `.get_stats64` series (Linux 6.16) and its
 
 ¹ No run above 880 Mbit/s; average of all runs. The `performance` column: runs at ≥ 880 Mbit/s.
 
-At a fixed 1.35 GHz the same work takes a smaller share of time than at the lower clocks `schedutil` picks; the CPU is not the bottleneck either way (50–60 % busy at ~900 Mbit/s over the bridge). Earlier, at idle: 3.8 % CPU with `schedutil` vs 6.0 % with `ondemand`. **Decision:** `schedutil` stays the default; `performance` is described in the [README](README.md#1-compiler-and-cpu-arm-cortex-a53) as an option.
+At a fixed 1.35 GHz the same work takes a smaller share of time than at the lower clocks `schedutil` picks; the CPU is not the bottleneck either way (50–60 % busy at ~900 Mbit/s over the bridge). Earlier, at idle: 3.8 % CPU with `schedutil` vs 6.0 % with `ondemand`. **Decision:** `schedutil` stays the default; `performance` can be chosen in LuCI → *System → CPU Frequency* (`luci-app-cpufreq`, see the [README](README.md#1-compiler-and-cpu-arm-cortex-a53)).
 
 ## 6. Latency and jitter
 

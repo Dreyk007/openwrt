@@ -68,6 +68,7 @@ git log --oneline --no-merges $BASE..xq-25.12 --author=remittor --author='David 
 | `files/etc/modules.conf` | `mt7915e wed_enable=Y` |
 | `files/etc/sysctl.d/99-bbr.conf` | Network / VM sysctl tuning, RFS table |
 | `files/etc/uci-defaults/99-custom-settings` | One-time defaults (HFO, firewall, packet steering, zram, procd, DoH, collectd) |
+| `package/ax3200/luci-app-cpufreq/` | LuCI page *System → CPU Frequency*: governor stored in `/etc/config/cpufreq`, applied by `/etc/init.d/cpufreq`. Builds with `feeds/luci/luci.mk`, so the LuCI feed must be installed |
 | `README.ru.md`, `UPGRADING.md`, `RESEARCH.md` | Documentation |
 
 **Edits of upstream and remittor files** (possible conflict points):
