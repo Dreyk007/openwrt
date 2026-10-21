@@ -11,7 +11,7 @@ The goal of the build is **line-rate 1 Gbps wired and Wi-Fi 6 throughput, low la
 > [!WARNING]
 > Wi-Fi is **enabled on first boot with the public default password `12345678`** and the web interface has **no root password**. Set both right after flashing (LuCI → *System → Administration* and *Network → Wireless*).
 
-**Contents:** [Key changes](#key-changes) · [SQM or hardware offloading?](#sqm-or-hardware-offloading) · [Wi-Fi 160 MHz and VR](#wi-fi-at-160-mhz-he160-and-vr-streaming) · [Pre-installed packages](#pre-installed-packages) · [Installation](#installation) · [Building](#building) · [Updating to a new release](UPGRADING.md)
+**Contents:** [Key changes](#key-changes) · [SQM or hardware offloading?](#sqm-or-hardware-offloading) · [Wi-Fi 160 MHz and VR](#wi-fi-at-160-mhz-he160-and-vr-streaming) · [Pre-installed packages](#pre-installed-packages) · [Installation](#installation) · [Building](#building) · [Updating to a new release](UPGRADING.md) · [Research and measurements](RESEARCH.md)
 
 ---
 
@@ -23,6 +23,7 @@ The goal of the build is **line-rate 1 Gbps wired and Wi-Fi 6 throughput, low la
 * **Link-Time Optimization** (`CONFIG_USE_LTO=y`) and **dead code/data elimination** (`CONFIG_USE_GC_SECTIONS=y`) for userland packages.
 * **`FORTIFY_SOURCE=2`** (`CONFIG_PKG_FORTIFY_SOURCE_2=y`) instead of the default level 1. The other hardening options (stack protector for userland and kernel, full RELRO, PIE) and `sstrip -z` binary stripping are OpenWrt defaults and are kept as is.
 * **`schedutil` CPU frequency governor** by default (`target/linux/mediatek/mt7622/config-6.12`) instead of `ondemand`. `ondemand` samples the load periodically and ramps up the clock (437.5 MHz → 1.35 GHz) with a delay on traffic bursts; `schedutil` scales the frequency directly from the scheduler. Measured on the device at idle: 3.8 % CPU load with `schedutil` vs 6.0 % with `ondemand`.
+* **`performance` governor (optional):** keeps the CPU at 1.35 GHz all the time. Compared with `schedutil` it needs less CPU for the same traffic on the paths the CPU handles (−28 % per Gbit/s on Wi-Fi → LAN bridging) and lowers the idle Wi-Fi round-trip time by about 0.2 ms (1.60 → 1.42 ms median), but the throughput (limited by Wi-Fi) and the latency under load stay the same, and the router runs about 2 °C warmer. `schedutil` therefore stays the default. To switch until the next reboot: `echo performance > /sys/devices/system/cpu/cpufreq/policy0/scaling_governor`; to keep it, add that line to LuCI → *System → Startup → Local Startup* (`/etc/rc.local`, kept across upgrades). Details: [RESEARCH.md](RESEARCH.md#5-cpu-frequency-governor).
 
 ### 2. Hardware NAT and Wi-Fi 6 Acceleration (HFO + WED)
 * **Hardware Flow Offloading (PPE):** the MediaTek **Packet Processing Engine** (`kmod-nft-offload`, `flow_offloading='1'`, `flow_offloading_hw='1'`) handles routing and NAT of established flows in hardware at line rate with almost no CPU load.
