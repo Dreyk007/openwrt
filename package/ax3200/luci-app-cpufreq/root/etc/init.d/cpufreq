@@ -1,0 +1,26 @@
+#!/bin/sh /etc/rc.common
+# Apply the CPU frequency governor from /etc/config/cpufreq (LuCI: System -> CPU Frequency)
+
+START=15
+USE_PROCD=1
+
+start_service() {
+	local governor policy
+
+	config_load cpufreq
+	config_get governor settings governor
+	[ -n "$governor" ] || return 0
+
+	for policy in /sys/devices/system/cpu/cpufreq/policy*; do
+		[ -d "$policy" ] || continue
+		if ! grep -qw "$governor" "$policy/scaling_available_governors"; then
+			logger -t cpufreq "governor '$governor' is not available for ${policy##*/}"
+			continue
+		fi
+		echo "$governor" > "$policy/scaling_governor"
+	done
+}
+
+service_triggers() {
+	procd_add_reload_trigger cpufreq
+}

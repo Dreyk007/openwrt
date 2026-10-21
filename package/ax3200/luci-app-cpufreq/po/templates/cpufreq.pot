@@ -1,0 +1,38 @@
+msgid ""
+msgstr "Content-Type: text/plain; charset=UTF-8"
+
+msgid "<code>schedutil</code> raises the clock with the load and saves energy at idle. <code>performance</code> keeps the maximum frequency all the time: measured on this router it needed 28%% less CPU per Gbit/s on Wi-Fi to LAN bridging and lowered the idle Wi-Fi latency by about 0.2 ms, but the throughput and the latency under load stayed the same and the router ran about 2 °C warmer."
+msgstr ""
+
+msgid "CPU Frequency"
+msgstr ""
+
+msgid "Current state"
+msgstr ""
+
+msgid "Frequency range: %s – %s"
+msgstr ""
+
+msgid "Governor"
+msgstr ""
+
+msgid "Grant access to the CPU frequency governor settings"
+msgstr ""
+
+msgid "The CPU frequency governor of the router, applied immediately and at every boot."
+msgstr ""
+
+msgid "conservative: changes the frequency in small steps"
+msgstr ""
+
+msgid "ondemand: samples the load periodically"
+msgstr ""
+
+msgid "performance: always the maximum frequency"
+msgstr ""
+
+msgid "powersave: always the minimum frequency"
+msgstr ""
+
+msgid "schedutil: follows the load (default)"
+msgstr ""

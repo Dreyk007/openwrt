@@ -1,0 +1,41 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: ru\n"
+"Plural-Forms: nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);\n"
+
+msgid "<code>schedutil</code> raises the clock with the load and saves energy at idle. <code>performance</code> keeps the maximum frequency all the time: measured on this router it needed 28%% less CPU per Gbit/s on Wi-Fi to LAN bridging and lowered the idle Wi-Fi latency by about 0.2 ms, but the throughput and the latency under load stayed the same and the router ran about 2 °C warmer."
+msgstr "<code>schedutil</code> повышает частоту вместе с нагрузкой и экономит энергию в простое. <code>performance</code> всё время держит максимальную частоту: по замерам на этом роутере ему нужно на 28%% меньше CPU на 1 Гбит/с на мосту из Wi-Fi в LAN, а задержка по Wi-Fi в простое ниже примерно на 0,2 мс. Но скорость и задержка под нагрузкой не меняются, а роутер греется примерно на 2 °C сильнее."
+
+msgid "CPU Frequency"
+msgstr "Частота процессора"
+
+msgid "Current state"
+msgstr "Текущее состояние"
+
+msgid "Frequency range: %s – %s"
+msgstr "Диапазон частот: %s – %s"
+
+msgid "Governor"
+msgstr "Регулятор"
+
+msgid "Grant access to the CPU frequency governor settings"
+msgstr "Доступ к настройкам регулятора частоты CPU"
+
+msgid "The CPU frequency governor of the router, applied immediately and at every boot."
+msgstr "Регулятор частоты процессора роутера. Применяется сразу и при каждой загрузке."
+
+msgid "conservative: changes the frequency in small steps"
+msgstr "conservative: меняет частоту небольшими шагами"
+
+msgid "ondemand: samples the load periodically"
+msgstr "ondemand: периодически опрашивает нагрузку"
+
+msgid "performance: always the maximum frequency"
+msgstr "performance: всегда максимальная частота"
+
+msgid "powersave: always the minimum frequency"
+msgstr "powersave: всегда минимальная частота"
+
+msgid "schedutil: follows the load (default)"
+msgstr "schedutil: по нагрузке (по умолчанию)"
