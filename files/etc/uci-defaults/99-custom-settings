@@ -7,24 +7,15 @@
 # configuration: a marker is stored in /etc/config/ax3200, which sysupgrade
 # keeps together with the rest of /etc/config. This way user changes, e.g.
 # disabling flow offloading in favour of SQM, survive firmware upgrades.
-# Only the LuCI theme migration and the collectd include cleanup below run on every flash.
+# Only the collectd include cleanup below runs on every flash.
 #
-# Wi-Fi radio defaults are set by /etc/uci-defaults/77_wireless.
+# Wi-Fi radio defaults are set by /etc/uci-defaults/77_wireless. The list of LuCI themes is
+# brought in line with the installed ones on every boot by /etc/init.d/luci-themes.
 
 # A LuCI theme is usable when its header template exists (the same check LuCI does)
 theme_ok() {
 	[ -f "/usr/share/ucode/luci/template/themes/${1##*/}/header.ut" ]
 }
-
-# LuCI themes, on every flash: forget themes that are no longer installed and replace a
-# missing active theme (e.g. OpenWrt-2020 or Material from older builds) with Footstrap
-for theme in $(uci -q show luci.themes | sed -n "s/^luci\.themes\.\([^.=]*\)=.*/\1/p"); do
-	theme_ok "$(uci -q get luci.themes.$theme)" || uci -q delete luci.themes.$theme
-done
-if ! theme_ok "$(uci -q get luci.main.mediaurlbase)" && theme_ok /luci-static/footstrap; then
-	uci set luci.main.mediaurlbase='/luci-static/footstrap'
-fi
-uci -q commit luci
 
 # collectd, on every flash: older builds included /etc/collectd/conf.d for the ethstat WAN
 # graph, which the interface graphs make redundant now that the switch port counters include

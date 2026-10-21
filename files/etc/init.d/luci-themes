@@ -1,0 +1,40 @@
+#!/bin/sh /etc/rc.common
+# Keep the LuCI themes in /etc/config/luci in line with the installed ones, on every boot.
+#
+# A theme registers itself only once, from its uci-defaults script after a flash. Restoring a
+# backup replaces /etc/config/luci, so a backup made on another firmware hides themes of this
+# build (e.g. Footstrap) or leaves LuCI on a theme that is no longer installed.
+
+START=11
+
+# A LuCI theme is usable when its header template exists (the same check LuCI does)
+theme_ok() {
+	[ -f "/usr/share/ucode/luci/template/themes/${1##*/}/header.ut" ]
+}
+
+start() {
+	local script theme
+
+	# Themes of the image missing from the configuration: run their own registration script
+	# again, which only adds missing entries and never changes the active theme
+	for script in /rom/etc/uci-defaults/30_luci-theme-*; do
+		[ -f "$script" ] || continue
+		theme="/luci-static/${script##*/30_luci-theme-}"
+		theme_ok "$theme" || continue
+		uci -q show luci.themes | grep -qF "='$theme'" && continue
+		sh "$script"
+	done
+
+	# Forget themes that are no longer installed and replace a missing active theme
+	# (e.g. OpenWrt-2020 or Material from older builds) with Footstrap
+	for theme in $(uci -q show luci.themes | sed -n "s/^luci\.themes\.\([^.=]*\)=.*/\1/p"); do
+		theme_ok "$(uci -q get luci.themes.$theme)" || uci -q delete luci.themes.$theme
+	done
+	if ! theme_ok "$(uci -q get luci.main.mediaurlbase)" && theme_ok /luci-static/footstrap; then
+		uci set luci.main.mediaurlbase='/luci-static/footstrap'
+	fi
+
+	# Write to flash only when something changed
+	[ -n "$(uci -q changes luci)" ] && uci -q commit luci
+	return 0
+}

@@ -68,6 +68,7 @@ git log --oneline --no-merges $BASE..xq-25.12 --author=remittor --author='David 
 | `files/etc/modules.conf` | `mt7915e wed_enable=Y` |
 | `files/etc/sysctl.d/99-bbr.conf` | Network / VM sysctl tuning, RFS table |
 | `files/etc/uci-defaults/99-custom-settings` | One-time defaults (HFO, firewall, packet steering, zram, procd, DoH, collectd) |
+| `files/etc/init.d/luci-themes` | On every boot: registers the image's LuCI themes missing from `/etc/config/luci` (e.g. after restoring a backup made on another firmware) by re-running their `/rom/etc/uci-defaults/30_luci-theme-*`, drops themes that are not installed, replaces a missing active theme with Footstrap |
 | `package/ax3200/luci-app-cpufreq/` | LuCI page *System → CPU Frequency*: governor stored in `/etc/config/cpufreq`, applied by `/etc/init.d/cpufreq`. Builds with `feeds/luci/luci.mk`, so the LuCI feed must be installed |
 | `README.ru.md`, `UPGRADING.md`, `RESEARCH.md` | Documentation |
 
@@ -257,7 +258,7 @@ A new series can change any of the underlying facts. Check each item before buil
 5. **Flash layout:** `DEVICE_COMPAT_VERSION` of `xiaomi_redmi-router-ax6s` in `target/linux/mediatek/image/mt7622.mk`. If it changed, sysupgrade with kept settings is refused and the README installation section needs an update.
 6. **Wi-Fi / WED / HFO:** the `wed_enable` parameter of `mt7915e`, `kmod-nft-offload`, the `flow_offloading*` firewall options.
 7. **Packet steering:** `package/network/config/netifd/files/usr/libexec/network/packet-steering.uc` still pins threaded NAPI and only sets the per-queue `rps_flow_cnt` (then `rps_sock_flow_entries` in `99-bbr.conf` is still needed); the decision against `irqbalance` still holds.
-8. **Defaults script:** option names used by `99-custom-settings` (`https-dns-proxy` `force_dns`, `luci_statistics` plugin sections, `system.@system[0].zram_*`, procd `system.@service[0].respawn_*`, `dropbear` `Interface`), and the LuCI theme logic: themes are detected by `/usr/share/ucode/luci/template/themes/<name>/header.ut` (the check LuCI itself does in `luci-base/ucode/runtime.uc`), and `luci-theme-footstrap` must still be available.
+8. **Defaults script:** option names used by `99-custom-settings` (`https-dns-proxy` `force_dns`, `luci_statistics` plugin sections, `system.@system[0].zram_*`, procd `system.@service[0].respawn_*`, `dropbear` `Interface`), and the LuCI theme logic (`99-custom-settings`, `files/etc/init.d/luci-themes`): themes are detected by `/usr/share/ucode/luci/template/themes/<name>/header.ut` (the check LuCI itself does in `luci-base/ucode/runtime.uc`), each theme package must still register itself in `30_luci-theme-<name>` as `/luci-static/<name>` without changing an existing active theme, and `luci-theme-footstrap` must still be available.
 9. **Sysctl names** in `99-bbr.conf` (`sysctl -a` on the device after flashing).
 10. **NVRAM anti-brick:** the U-Boot variables used by `bootcount` are still the right ones.
 11. **PPE accounting patch (`970-...`):** check whether `generic/pending-*/736-04-net-ethernet-mediatek-fix-ppe-flow-accounting-for-L2.patch` still exists and whether upstream reworked the PPE accounting. Refresh the patch, or drop it if the bug is fixed; verify with a large download through the router that `nlbw -c show` grows by the downloaded amount and never jumps by ~4 GB.
