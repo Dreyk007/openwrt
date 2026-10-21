@@ -2,7 +2,7 @@
 
 The measurements behind the decisions of this build, taken in October 2026 on a Redmi AX6S running OpenWrt 25.12.6 (`xq-25.12`) with a real home configuration. Each section ends with the decision it led to.
 
-**Contents:** [Test setup](#test-setup) · [1. irqbalance](#1-irqbalance-vs-packet-steering) · [2. Official kmods](#2-official-kmod-compatibility) · [3. Traffic accounting](#3-traffic-accounting-with-hardware-offloading) · [4. Interface counters](#4-interface-counters-with-hardware-offloading) · [5. CPU governor](#5-cpu-frequency-governor) · [6. Latency](#6-latency-and-jitter) · [7. Kernel hardening](#7-cost-of-kernel-hardening) · [8. Extreme build](#8-extreme-build-experiment-dropped)
+**Contents:** [Test setup](#test-setup) · [1. irqbalance](#1-irqbalance-vs-packet-steering) · [2. Official kmods](#2-official-kmod-compatibility) · [3. Traffic accounting](#3-traffic-accounting-with-hardware-offloading) · [4. Interface counters](#4-interface-counters-with-hardware-offloading) · [5. CPU governor](#5-cpu-frequency-governor) · [6. Latency](#6-latency-and-jitter) · [7. Kernel hardening](#7-cost-of-kernel-hardening) · [8. Extreme build](#8-extreme-build-experiment-dropped) · [9. WAN bufferbloat](#9-wan-bufferbloat-and-the-need-for-sqm)
 
 ## Test setup
 
@@ -15,6 +15,7 @@ The measurements behind the decisions of this build, taken in October 2026 on a 
   * nlbwmon zeroes the conntrack counters on every dump: measure accounting through `nlbw` deltas after more than 30 s (its refresh interval), never through `/proc/net/nf_conntrack`.
   * CPU per Gbit/s is only comparable at similar throughput: when Wi-Fi throughput drops, the CPU load stays about the same and the ratio inflates.
   * Some public test servers block a client after heavy use (proof.ovh.net did after ~12 GB). Spread the load.
+  * Do not ping the ISP gateway at a high rate: it rate-limits ICMP (64 % loss at 50 pings/s) and then also holds back transit ICMP for ~0.9 s, which looks like a stall of the whole connection. Ping external hosts instead (1.1.1.1, 8.8.8.8: no stalls at 100 pings/s).
 
 ## 1. irqbalance vs packet steering
 
@@ -135,3 +136,15 @@ Findings worth keeping for future work:
 * **`sysupgrade` keeps settings by the conffiles lists in `/lib/apk/packages`.** They must stay even without a package manager.
 * **Built-in drivers can open new kconfig questions:** making `TCP_CONG_BBR` built in opens the `DEFAULT_BBR` choice and stops a non-interactive build. `make listnewconfig` finds such questions.
 * **Stripped modules keep their export names only in `__ksymtab_strings`.**
+
+## 9. WAN bufferbloat and the need for SQM
+
+Pings every 20 ms to 1.1.1.1 and 8.8.8.8 from the wired PC, idle and with the ISP link (~550/550 Mbit/s) saturated by 4 parallel downloads or 4 iperf3 upload streams, hardware offloading on, 2 rounds. Round-trip to 1.1.1.1:
+
+| | Throughput | Median (change) | p99 | Max |
+|---|---|---|---|---|
+| Idle | — | 8.9 ms | 12.9 ms | 19.0 ms |
+| Download saturated | 540–556 Mbit/s | 8.9–9.0 ms (+0.1) | 13.2–13.3 ms | 17.1 ms |
+| Upload saturated | 513–573 Mbit/s | 8.8–8.9 ms (0) | 15.5–18.1 ms | 21.3 ms |
+
+8.8.8.8 behaves the same; packet loss stays at or below 0.1 %. The ISP link does not bloat under load, so SQM would cost the hardware offloading (and cap the throughput at what the CPU can shape) without improving the latency. **Decision:** keep hardware flow offloading; no SQM or QoS on this link. On a link that does bloat, follow [SQM or hardware offloading?](README.md#sqm-or-hardware-offloading).
