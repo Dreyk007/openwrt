@@ -99,6 +99,12 @@ if uci -q get https-dns-proxy.config >/dev/null; then
 	uci -q commit https-dns-proxy
 fi
 
+# Dynamic DNS ships with example services only: do not start it at boot while no service is
+# enabled. LuCI -> Services -> Dynamic DNS -> "Start DDNS" turns the autostart on again.
+if [ -x /etc/init.d/ddns ] && ! uci -q show ddns | grep -q "\.enabled='1'$"; then
+	/etc/init.d/ddns disable
+fi
+
 # Remember that the defaults have been applied to this configuration
 touch /etc/config/ax3200
 uci set ax3200.defaults='defaults'
