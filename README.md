@@ -236,6 +236,12 @@ The workflow [`.github/workflows/build-ax3200.yml`](.github/workflows/build-ax32
 
 A full build takes a few hours on the 4-core runner; the source downloads (`dl/`) are cached between runs. If the build fails, its log is attached to the run as the `build-log` artifact.
 
+**Verifying a download.** The workflow signs a build provenance attestation for every published file ([`actions/attest`](https://github.com/actions/attest), Sigstore): it ties the file's SHA256 to the workflow run and the commit it was built from, and it is recorded in a public transparency log, so it cannot be produced for a file that this workflow did not build. The releases are immutable, so their files and tags cannot be replaced after publication either. Check a downloaded image with the [GitHub CLI](https://cli.github.com/):
+```bash
+gh attestation verify openwrt-mediatek-mt7622-xiaomi_redmi-router-ax6s-squashfs-sysupgrade.itb --repo Dreyk007/openwrt
+gh release verify-asset <release tag> openwrt-mediatek-mt7622-xiaomi_redmi-router-ax6s-squashfs-sysupgrade.itb --repo Dreyk007/openwrt
+```
+
 > The repository also carries OpenWrt's own CI workflows (`kernel.yml`, `packages.yml`, `toolchain.yml`, `github-release.yml`, …). They are meant for openwrt/openwrt: after enabling Actions in the fork, disable them (*Actions → workflow → ⋯ → Disable workflow*, or `gh workflow disable <file>`), otherwise pushes and `v*` tags trigger them.
 
 ### Manual Build

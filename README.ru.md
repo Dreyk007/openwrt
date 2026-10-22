@@ -236,6 +236,12 @@ Workflow [`.github/workflows/build-ax3200.yml`](.github/workflows/build-ax3200.y
 
 Полная сборка на 4-ядерном раннере занимает несколько часов; исходники (`dl/`) кэшируются между запусками. Если сборка упала, её лог прикладывается к запуску как артефакт `build-log`.
 
+**Проверка скачанных файлов.** Для каждого публикуемого файла workflow подписывает подтверждение происхождения сборки ([`actions/attest`](https://github.com/actions/attest), Sigstore). Оно связывает SHA256 файла с запуском workflow и коммитом, из которого файл собран, и записывается в публичный журнал прозрачности, поэтому для файла, собранного не этим workflow, его получить нельзя. Релизы неизменяемые: файлы и теги после публикации тоже не подменить. Проверить скачанный образ можно через [GitHub CLI](https://cli.github.com/):
+```bash
+gh attestation verify openwrt-mediatek-mt7622-xiaomi_redmi-router-ax6s-squashfs-sysupgrade.itb --repo Dreyk007/openwrt
+gh release verify-asset <тег релиза> openwrt-mediatek-mt7622-xiaomi_redmi-router-ax6s-squashfs-sysupgrade.itb --repo Dreyk007/openwrt
+```
+
 > В репозитории также лежат собственные CI-workflow OpenWrt (`kernel.yml`, `packages.yml`, `toolchain.yml`, `github-release.yml`, …). Они предназначены для openwrt/openwrt: после включения Actions в форке отключите их (*Actions → workflow → ⋯ → Disable workflow* или `gh workflow disable <файл>`), иначе они будут запускаться на push и на теги `v*`.
 
 ### Ручная сборка

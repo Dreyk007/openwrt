@@ -23,6 +23,9 @@ on:
 
 permissions:
   contents: write
+  # Signed build provenance: the OIDC token for the Sigstore certificate and storing the attestation
+  id-token: write
+  attestations: write
 
 concurrency:
   group: build-ax3200
@@ -126,11 +129,31 @@ jobs:
             echo '```'
             cat release/sha256sums
             echo '```'
+            echo
+            echo "### Verification"
+            echo "Every file has a signed build provenance attestation that ties it to this workflow run and commit. With the [GitHub CLI](https://cli.github.com/):"
+            echo '```'
+            echo "gh attestation verify $prefix-squashfs-sysupgrade.itb --repo $GITHUB_REPOSITORY"
+            echo '```'
+            echo "The release is immutable: its files and tag cannot be changed after publication. To check the release and a downloaded file against it:"
+            echo '```'
+            echo "gh release verify $tag --repo $GITHUB_REPOSITORY"
+            echo "gh release verify-asset $tag $prefix-squashfs-sysupgrade.itb --repo $GITHUB_REPOSITORY"
+            echo '```'
           } > release-notes.md
 
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
           echo "title=OpenWrt $ver for Xiaomi AX3200 / Redmi AX6S ($tag)" >> "$GITHUB_OUTPUT"
 
+      # Sigstore-signed SLSA provenance for every published file, recorded in the public
+      # transparency log: gh attestation verify <file> --repo <owner>/<repo>
+      - name: Attest build provenance
+        uses: actions/attest@v4
+        with:
+          subject-path: release/*
+
+      # gh uploads the files to a draft and publishes it afterwards, so this also works
+      # with immutable releases (Settings -> General -> Releases -> Enable release immutability).
       - name: Publish release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -142,6 +165,10 @@ jobs:
           [ "$PRERELEASE" = "true" ] && flags+=(--prerelease)
           gh release create "$TAG" release/* --target "$GITHUB_SHA" \
             --title "$TITLE" --notes-file release-notes.md "${flags[@]}"
+          immutable=$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$TAG" --jq .immutable)
+          if [ "$immutable" != "true" ]; then
+            echo "::warning::Release $TAG is not immutable, although its notes say so: enable Settings -> General -> Releases -> Enable release immutability"
+          fi
 
       - name: Disk usage
         if: always()
