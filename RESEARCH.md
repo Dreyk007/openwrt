@@ -148,3 +148,29 @@ Pings every 20 ms to 1.1.1.1 and 8.8.8.8 from the wired PC, idle and with the IS
 | Upload saturated | 513–573 Mbit/s | 8.8–8.9 ms (0) | 15.5–18.1 ms | 21.3 ms |
 
 8.8.8.8 behaves the same; packet loss stays at or below 0.1 %. The ISP link does not bloat under load, so SQM would cost the hardware offloading (and cap the throughput at what the CPU can shape) without improving the latency. **Decision:** keep hardware flow offloading; no SQM or QoS on this link. On a link that does bloat, follow [SQM or hardware offloading?](README.md#sqm-or-hardware-offloading).
+
+## 10. Wi-Fi driver fixes from mt76 master
+
+OpenWrt 25.12 builds mt76 from Git HEAD 2026-03-19 plus the fixes that reached Linux 6.18.55; mac80211 comes from backports 6.18.55. OpenWrt main has mt76 2026-10-08 and mac80211 7.2. The firmware is the same in both (MT7915 20240429, MT7622 WMAC 20220630), so rate control and the RF side do not change.
+
+Of the 387 mt76 commits since our version, 139 touch the code of this board's chips (MT7915E on 5 GHz, the MT7622 WMAC through `mt7615` on 2.4 GHz, the core and `connac` library) and 41 of them are already in 25.12. Every remaining commit that changes a compiled file was checked against the functions our drivers call: most are for MT7925/7927/7928, MT7996, MLO, NAN, or for the mt76 hardware scan and channel contexts, which neither driver uses (both use `mt76_sw_scan` and mac80211's chanctx emulation). 18 fixes apply to us and on top of 25.12's patches without conflicts (`package/kernel/mt76/patches/0300…0317`):
+
+* station add/removal races that corrupt memory (`20f0979088`, `b1bc93f953`, `8f69e214f0`, `7ff2f295a6`), a NULL dereference in the 2.4 GHz driver (`bd41e0fbea`), frames to disassociated stations stuck in the queues (`0898393ee0`);
+* firmware recovery (SER): RX hang detection (`af601a725f`), stuck TX queues (`130273a947`), the PHY setup that a full restart skipped (`b1f962a838`), and an out-of-bounds write in the coredump that a firmware crash produces (`fd3dc2614c`; coredump support is built in);
+* the per-station RSSI average (`ed62359710`): since "mt76: improve signal strength reporting" (February 2022) mt76 fed it zeros, so the adaptive sensitivity (SCS) of the MT7622 WMAC always fell back to its default;
+* TX aggregation on the VO queue (`f67ffb60cd`), HE DCM and VHT RX STBC peer capabilities (`e593243800`, `41cecc382b`), 4th-chain ACK RSSI (`cdc6c0d07c`), bounds checks (`04017929f6`, `1c9854c436`, `2802466a94`).
+
+**SCS on the 2.4 GHz radio** (channel 1, 10 clients, weakest at −61 dBm), measured on the new firmware by switching `/sys/kernel/debug/ieee80211/wl0/mt76/scs` at runtime, 2 minutes each, interleaved:
+
+| | SCS off (old behaviour) | SCS on |
+|---|---|---|
+| Packet detection threshold (OFDM / CCK) | −98 / −110 dBm, fixed | mostly −74 / −78 dBm, back to the default for a moment every ~30 s |
+| False CCA (CCK, per interval) | 1000–1700 | 130–490 |
+| Channel busy (survey) | 27.1 % / 34.8 % | 14.8 % / 14.5 % |
+| Receive time | 44.4 % / 43.3 % | 19.0 % / 19.1 % |
+| Transmit time | 2.5 % / 3.1 % | 2.6 % / 2.6 % |
+| Ping loss, sum over the 10 clients | 6 % / 13 % | 3 % / 0 % |
+
+The radio no longer counts the noise of the busy 2.4 GHz band as a busy channel, so it waits less before sending. The threshold never goes above the weakest connected client (and −72 dBm); a far device that is not connected yet is only heard while the threshold is back at its default. If such a device has trouble joining the 2.4 GHz network, `echo 0 > /sys/kernel/debug/ieee80211/wl0/mt76/scs` restores the old behaviour until the next reboot.
+
+**Not taken:** the whole mt76 HEAD needs mac80211 7.2 APIs (`ieee80211_txq_aql_pending()`, link-ID template getters) that OpenWrt main only builds on kernel 6.18. The power-save buffering for MT7915 (`9a46d8d21d`, `9e613fb007`) is a behaviour change with little effect here: offloaded traffic from the WAN goes through WED past the driver, and only host-path frames to dozing 5 GHz clients would be affected. mac80211 fixes from Linux 6.18.56–58 (e.g. extension frame validation, oversized fragments, PS teardown) arrive with the next mac80211 update of 25.12, which happened every 2–3 months so far.

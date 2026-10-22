@@ -82,6 +82,7 @@ git log --oneline --no-merges $BASE..xq-25.12 --author=remittor --author='David 
 | `target/linux/mediatek/patches-6.12/971-netfilter-flowtable-fetch-hardware-counters-before-removing-a-flow.patch` | New kernel patch for `net/netfilter/nf_flow_table_offload.c`: fetch the hardware counters of a flow once more before its hardware entries are removed |
 | `target/linux/generic/backport-6.12/799-0[1-7]-…-net-dsa-mt7530-….patch` | Backport of the upstream `mt7530` `.get_stats64` series (Linux 6.16) and its fix `07d995873960` (7.1): the switch's hardware port counters as the statistics of `wan` and `lan1`–`lan3`. Conflicts if OpenWrt backports the same commits |
 | `target/linux/mediatek/mt7622/base-files/etc/init.d/bootcount` | `xiaomi,redmi-router-ax6s` case: NVRAM anti-brick flags |
+| `package/kernel/mt76/patches/0300-…0317-*.patch`, `PKG_RELEASE` in `package/kernel/mt76/Makefile` | 18 fixes from `openwrt/mt76` master (up to 2026-10-08) on top of 25.12's mt76 (Git HEAD 2026-03-19 plus the fixes from Linux 6.18.55): station add/removal races, firmware recovery (SER), coredump overflow, the mt7615 RSSI average that the adaptive sensitivity (SCS) of the 2.4 GHz radio needs, VO aggregation, HE DCM / VHT RX STBC peer capabilities, 4th-chain ACK RSSI. Each patch names its upstream commit; see [2.2](#22-merge-the-new-tag) |
 | `package/base-files/Makefile` | `CONFIG_PACKAGE_MAC80211_*` in `PKG_CONFIG_DEPENDS` (on top of the remittor patch) |
 | `package/base-files/files/etc/uci-defaults/77_wireless` | Band-aware radio defaults (file added by the remittor patch) |
 | `package/base-files/files/bin/config_generate` | `system.ntp.enable_server='1'` |
@@ -118,7 +119,10 @@ If a conflict happens anyway:
 
 * `README.md` — keep ours (`git checkout --ours README.md`); upstream only has the generic OpenWrt README.
 * Makefiles / scripts — keep both changes: take upstream's version and re-apply the fork's lines (see [1.2](#12-this-builds-commits)).
+* `package/kernel/mt76/Makefile` — take upstream's version and set `PKG_RELEASE` one higher than upstream's, so the packages with our `03xx` patches differ from the official ones.
 * `git add <file>` for each resolved file, then `git commit`.
+
+If the new release changed `package/kernel/mt76` (a new Git HEAD or more fixes cherry-picked from Linux stable), drop the `package/kernel/mt76/patches/03xx-*.patch` that it now contains: compare their `Subject:` lines with the new upstream patches and, after a Git HEAD update, check with `git -C <mt76 clone> merge-base --is-ancestor <commit> <new PKG_SOURCE_VERSION>` (each `03xx` patch names its upstream commit). Then run `make package/kernel/mt76/{clean,compile} V=s` and make sure every remaining `03xx` patch still applies.
 
 Check the version: `grep -nF '$(VERSION_NUMBER),$(VERSION_NUMBER),' include/version.mk` must show the new version number.
 
@@ -264,6 +268,7 @@ A new series can change any of the underlying facts. Check each item before buil
 11. **PPE accounting patch (`970-...`):** check whether `generic/pending-*/736-04-net-ethernet-mediatek-fix-ppe-flow-accounting-for-L2.patch` still exists and whether upstream reworked the PPE accounting. Refresh the patch, or drop it if the bug is fixed; verify with a large download through the router that `nlbw -c show` grows by the downloaded amount and never jumps by ~4 GB.
 12. **Flowtable teardown patch (`971-...`):** check whether upstream `flow_offload_work_del()` in `net/netfilter/nf_flow_table_offload.c` now fetches the flow stats itself; drop the patch then, otherwise refresh it. It works together with the MIB read in `970-...`: after a TCP FIN the PPE unbinds the entry by itself, so the final poll has to read the hardware counter of an unbound entry. Verify with downloads that close their connection right after the transfer (e.g. `curl -o /dev/null` of a 300 MiB file, and 30 x 10 MiB on separate connections): after ~40 s (`nlbwmon` refresh interval) `nlbw -c show` must have grown by the downloaded amount plus ~5% headers, not by 50-85% (300 MiB) or ~4% (10 MiB) of it.
 13. **`mt7530` port counters backport (`generic/backport-6.12/799-0*`):** kernels from 6.16 on have `.get_stats64`, so drop `799-01`…`799-06`. Keep `799-07` (or drop it too) depending on whether the new kernel already has `07d995873960` ("net: dsa: mt7530: fix .get_stats64 sleeping in atomic context", Linux 7.1, likely backported to 6.18.y stable): without it reading `/proc/net/dev` logs "BUG: sleeping function called from invalid context". Verify that `cat /sys/class/net/wan/statistics/rx_bytes` grows by the downloaded amount during an offloaded download and that `dmesg` stays clean.
+14. **mt76 fixes (`package/kernel/mt76/patches/03xx-*.patch`):** a new series builds a newer mt76, so most of them are included already; drop those as described in [2.2](#22-merge-the-new-tag). After flashing, check `cat /sys/kernel/debug/ieee80211/wl0/mt76/radio` a few times: on a busy 2.4 GHz channel the sensitivity must move away from `ofdm=-98 cck=-110` (SCS working).
 
 ### 3.7. Build, flash, verify and publish
 
