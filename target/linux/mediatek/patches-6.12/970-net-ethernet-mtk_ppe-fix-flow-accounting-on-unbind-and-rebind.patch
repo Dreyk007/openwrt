@@ -27,6 +27,17 @@ after reading the MIB counter of the entry, and detach the flow from the
 hardware entry (entry->hash = 0xffff), as upstream does on unbind.
 Also never report a decreasing total as a positive delta.
 
+__mtk_ppe_check_skb() also detached every other flow of the bucket that
+was bound to a hardware entry, although only an entry naming the slot
+being bound is stale: a flow bound to another slot of the same bucket
+stays bound in hardware. Its counters stopped, and when the flowtable
+removed it, its hardware entry stayed bound and kept forwarding and
+NATing for a flow that conntrack no longer tracked. Only detach the
+entries naming the slot being bound, as proposed by Alexander Goodkind
+in openwrt/openwrt#26107.
+
+Link: https://github.com/openwrt/openwrt/pull/26107
+
 Signed-off-by: Dreyk <dreyksmail@gmail.com>
 ---
 --- a/drivers/net/ethernet/mediatek/mtk_ppe.c
@@ -80,12 +91,17 @@ Signed-off-by: Dreyk <dreyksmail@gmail.com>
  		goto out;
  	}
  
-@@ -805,11 +830,14 @@
+@@ -805,11 +830,19 @@
  	hlist_for_each_entry_safe(entry, n, head, list) {
  		if (found ||
  		    !mtk_flow_entry_match(ppe->eth, entry, &foe, entry_len)) {
 -			if (entry->hash != 0xffff)
-+			if (entry->hash != 0xffff) {
++			/*
++			 * Only an entry naming this slot is stale: the slot now
++			 * holds another flow. A flow bound to another slot of the
++			 * bucket stays bound in hardware and keeps its hash.
++			 */
++			if (entry->hash == hash) {
 +				mtk_flow_entry_save_acct(ppe, entry);
  				__mtk_foe_entry_clear(ppe, entry, false);
 +			}
