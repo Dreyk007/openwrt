@@ -11,11 +11,90 @@ The goal of the build is **line-rate 1 Gbps wired and Wi-Fi 6 throughput, low la
 > [!WARNING]
 > Wi-Fi is **enabled on first boot with the public default password `12345678`** and the web interface has **no root password**. Set both right after flashing (LuCI → *System → Administration* and *Network → Wireless*).
 
-**Contents:** [Key changes](#key-changes) · [SQM or hardware offloading?](#sqm-or-hardware-offloading) · [Wi-Fi 160 MHz and VR](#wi-fi-at-160-mhz-he160-and-vr-streaming) · [Pre-installed packages](#pre-installed-packages) · [Installation](#installation) · [Building](#building) · [Updating to a new release](UPGRADING.md) · [Research and measurements](RESEARCH.md)
+**Contents:** [Highlights](#highlights) · [Installation](#installation) · [Key changes](#key-changes) · [SQM or hardware offloading?](#sqm-or-hardware-offloading) · [Wi-Fi 160 MHz and VR](#wi-fi-at-160-mhz-he160-and-vr-streaming) · [Pre-installed packages](#pre-installed-packages) · [Building](#building) · [Updating to a new release](UPGRADING.md) · [Research and measurements](RESEARCH.md)
+
+---
+
+## Highlights
+* **Line-rate routing with almost no CPU load:** hardware NAT (PPE) and Wi-Fi offloading (WED) are enabled by default, and kernel fixes keep the per-client traffic statistics and the interface graphs correct with them ([section 2](#2-hardware-nat-and-wi-fi-6-acceleration-hfo--wed)). SQM (CAKE) is pre-installed for slower links with bufferbloat ([SQM or hardware offloading?](#sqm-or-hardware-offloading)).
+* **More stable Wi-Fi:** 18 driver fixes from mt76 master (kernel crashes around client connects and radio firmware recovery, adaptive 2.4 GHz sensitivity), defaults tuned for both radios and optional 160 MHz on 5 GHz ([section 4](#4-wi-fi-defaults-77_wireless), [HE160](#wi-fi-at-160-mhz-he160-and-vr-streaming)).
+* **No "6 reboots → orange LED" soft-brick:** the U-Boot boot flags are checked on every boot ([section 3](#3-nvram-anti-brick-protection-6-reboots--orange-led-fix)).
+* **Official packages work:** the kernel is built like the official one, so `kmod-*` packages from the official repository install and load ([section 7](#7-official-package-repository-compatibility-vermagic--apk)).
+* **Tuned for the Cortex-A53:** GCC 15, `-O2` with the ARMv8 Crypto and CRC32 instructions, LTO, the `schedutil` frequency governor ([section 1](#1-compiler-and-cpu-arm-cortex-a53)).
+* **Ready to use:** LuCI in English and Russian with the Footstrap theme, encrypted DNS (DoH), SQM, UPnP, DDNS, Wake-on-LAN, per-client traffic accounting, statistics graphs and a web terminal ([Pre-installed packages](#pre-installed-packages)).
+* **Your settings survive upgrades:** the build's defaults are applied once per configuration, not on every flash ([section 6](#6-how-the-defaults-are-applied-99-custom-settings)).
+* **Verifiable releases:** built by GitHub Actions from this repository, with a signed build provenance for every file ([Build and release with GitHub Actions](#build-and-release-with-github-actions)).
+
+---
+
+## Installation
+
+> [!IMPORTANT]
+> Read the [OpenWrt wiki page for the Xiaomi AX3200 / Redmi AX6S](https://openwrt.org/toh/xiaomi/ax3200) first. It covers **backing up the flash partitions**, **TFTP and UART recovery** and hardware-revision specific issues that are not repeated here. Flashing third-party firmware is at your own risk.
+
+**Known risks (from the wiki):**
+* Some newer units have MTD partitions shifted by `-0x20000` and can brick on sysupgrade; on others even the factory image may fail. AX3200 units produced **after 12/2023** with telnet disabled are reported to be affected. Before the first sysupgrade of a unit installed from `factory.bin`, run the checks from the wiki ("Known Issue #1"): `hexdump /dev/mtd8 | head` must start with `0000000 0dd0 edfe`, and `fw_printenv | grep -e ^flag_try -e ^boot_fw` must show `boot_fw1=run boot_rd_img;bootm`.
+* The "6 reboots → orange LED" soft-brick is prevented by this build's `bootcount` once OpenWrt has booted (see [section 3](#3-nvram-anti-brick-protection-6-reboots--orange-led-fix)).
+
+### Firmware Images
+Built images are placed in `bin/targets/mediatek/mt7622/`:
+| File | Purpose |
+|---|---|
+| `openwrt-mediatek-mt7622-xiaomi_redmi-router-ax6s-factory.bin` | First installation from the stock firmware (or from OpenWrt ≤ 23.05). Contains `ubi-loader` padded to 512 KiB followed by the UBI image. |
+| `openwrt-mediatek-mt7622-xiaomi_redmi-router-ax6s-squashfs-sysupgrade.itb` | Regular upgrade from OpenWrt 24.10 / 25.12 (UBI layout). |
+| `openwrt-mediatek-mt7622-xiaomi_redmi-router-ax6s-sysupgrade.ubi` | Raw UBI image extracted from `factory.bin` by `build.sh`, for older builds that reject the `.itb` (see below). |
+| `openwrt-mediatek-mt7622-xiaomi_redmi-router-ax6s-ubi-loader.itb` | Second-stage U-Boot (`ubi-loader`) alone. |
+| `openwrt-mediatek-mt7622-xiaomi_redmi-router-ax6s-initramfs-recovery.itb` | Initramfs recovery image (TFTP). |
+
+### A. From the Stock Firmware with XMiR-Patcher (recommended)
+[XMiR-Patcher](https://github.com/openwrt-xiaomi/xmir-patcher) uses a vulnerability in the stock web interface to get SSH access and flashes the firmware for you. It works on Windows, Linux and macOS.
+
+1. Finish the initial setup of the stock firmware (the web interface password is required) and connect your PC to a **LAN** port of the router. The stock firmware is at `192.168.31.1`.
+2. Download XMiR-Patcher (*Code → Download ZIP*) and unpack it.
+3. Start it: **Windows** — `run.bat`; **Linux/macOS** — install Python 3.8+ and `openssl`, then `./run.sh`.
+4. If the router is not at `192.168.31.1`, choose `1 - Set IP-address`.
+5. Choose **`2 - Connect to device (install exploit)`** and enter the web interface password when asked.
+6. Choose **`4 - Create full backup`**. The dumps of all flash partitions are saved to the `backups/` folder of XMiR-Patcher — **keep them safe**: they contain the factory calibration data unique to your unit and are needed to return to stock or recover from a brick.
+7. Copy **only** `openwrt-mediatek-mt7622-xiaomi_redmi-router-ax6s-factory.bin` into the `firmware/` folder of XMiR-Patcher (no other images in that folder).
+8. Choose **`7 - Install firmware (from directory "firmware")`** and wait until the router reboots.
+9. Open `http://192.168.1.1` (user `root`, no password), set a root password and change the Wi-Fi password.
+
+If the exploit does not work with your stock firmware version, see the wiki for the alternatives (stock firmware with telnet, `netmode 4` methods, UART).
+
+### B. Upgrade from OpenWrt 24.10 / 25.12
+LuCI → *System → Backup / Flash Firmware → Flash new firmware image* with the `...-squashfs-sysupgrade.itb` file, or over SSH:
+```sh
+sysupgrade /tmp/openwrt-mediatek-mt7622-xiaomi_redmi-router-ax6s-squashfs-sysupgrade.itb
+```
+
+### C. Upgrade from OpenWrt 23.05 or Older (old flash layout)
+24.10 changed the flash layout (`ubi-loader` + UBI), so sysupgrade from 23.05 is not possible. Install `factory.bin` with `mtd` as described in the wiki ("24.10 UBI layout", method 1). The configuration is reset — make a backup first. After restoring a 23.05 backup, run:
+```sh
+uci set system.@system[0].compat_version="2.0"
+uci commit system
+```
+
+### D. Older Builds That Reject the `.itb` Image
+Some older third-party 24.10 builds refuse the FIT image with `Cannot find ubinized rootfs in the factory FIT-image`. Flash the raw UBI image instead (`build.sh` creates it; manually: `dd if=openwrt-mediatek-mt7622-xiaomi_redmi-router-ax6s-factory.bin of=sysupgrade.ubi bs=512K skip=1`). Copy it to `/tmp/` on the router and run (settings are not kept):
+```sh
+sysupgrade -n /tmp/openwrt-mediatek-mt7622-xiaomi_redmi-router-ax6s-sysupgrade.ubi
+```
+
+### E. Updating `ubi-loader` (optional)
+`sysupgrade` does not touch the `ubi-loader` partition. To update it to the version from this build:
+```sh
+mtd write /tmp/openwrt-mediatek-mt7622-xiaomi_redmi-router-ax6s-ubi-loader.itb ubi-loader
+reboot
+```
+
+### Backup and Recovery
+Backing up the flash partitions, TFTP recovery and UART access are described on the [OpenWrt wiki page](https://openwrt.org/toh/xiaomi/ax3200).
 
 ---
 
 ## Key Changes
+
+The files of every change are listed in [UPGRADING.md](UPGRADING.md#12-this-builds-commits).
 
 ### 1. Compiler and CPU (`ARM Cortex-A53`)
 * **OpenWrt GCC 15.2.0 toolchain** (`CONFIG_GCC_USE_VERSION_15=y`) instead of the default GCC 14.3, with better instruction scheduling for the in-order Cortex-A53 pipeline (~241 KB smaller compressed SquashFS).
@@ -23,18 +102,17 @@ The goal of the build is **line-rate 1 Gbps wired and Wi-Fi 6 throughput, low la
 * **Link-Time Optimization** (`CONFIG_USE_LTO=y`) and **dead code/data elimination** (`CONFIG_USE_GC_SECTIONS=y`) for userland packages.
 * **`FORTIFY_SOURCE=2`** (`CONFIG_PKG_FORTIFY_SOURCE_2=y`) instead of the default level 1. The other hardening options (stack protector for userland and kernel, full RELRO, PIE) and `sstrip -z` binary stripping are OpenWrt defaults and are kept as is.
 * **`schedutil` CPU frequency governor** by default (`target/linux/mediatek/mt7622/config-6.12`) instead of `ondemand`. `ondemand` samples the load periodically and ramps up the clock (437.5 MHz → 1.35 GHz) with a delay on traffic bursts; `schedutil` scales the frequency directly from the scheduler. Measured on the device at idle: 3.8 % CPU load with `schedutil` vs 6.0 % with `ondemand`.
-* **`performance` governor (optional):** keeps the CPU at 1.35 GHz all the time. Compared with `schedutil` it needs less CPU for the same traffic on the paths the CPU handles (−28 % per Gbit/s on Wi-Fi → LAN bridging) and lowers the idle Wi-Fi round-trip time by about 0.2 ms (1.60 → 1.42 ms median), but the throughput (limited by Wi-Fi) and the latency under load stay the same, and the router runs about 2 °C warmer. `schedutil` therefore stays the default. Switch in LuCI → *System → CPU Frequency* (`luci-app-cpufreq`, part of this build): the choice is applied immediately and at every boot and is kept across upgrades. Details: [RESEARCH.md](RESEARCH.md#5-cpu-frequency-governor).
+* **`performance` governor (optional)** keeps the CPU at 1.35 GHz all the time: it needs 28 % less CPU per Gbit/s for Wi-Fi → LAN bridging and lowers the idle Wi-Fi round-trip time by about 0.2 ms, but the throughput (limited by Wi-Fi) and the latency under load stay the same, and the router runs about 2 °C warmer. `schedutil` therefore stays the default. Switch it in LuCI → *System → CPU Frequency* (`luci-app-cpufreq`, part of this build); the choice is applied immediately and kept across upgrades. Details: [RESEARCH.md](RESEARCH.md#5-cpu-frequency-governor).
 
 ### 2. Hardware NAT and Wi-Fi 6 Acceleration (HFO + WED)
 * **Hardware Flow Offloading (PPE):** the MediaTek **Packet Processing Engine** (`kmod-nft-offload`, `flow_offloading='1'`, `flow_offloading_hw='1'`) handles routing and NAT of established flows in hardware at line rate with almost no CPU load.
 * **Wireless Ethernet Dispatch** (`files/etc/modules.conf`: `options mt7915e wed_enable=Y`): offloaded WAN traffic is forwarded by the PPE directly into the DMA rings of the **MT7915E (5 GHz Wi-Fi 6)** radio, bypassing the CPU. The MT7622 has no WED RX, so only WAN → Wi-Fi traffic bypasses the CPU this way; Wi-Fi → WAN traffic is forwarded by the CPU through the software flow offload path.
-* **`bridger` is not included:** it is only useful in dumb AP mode. In router mode HFO + WED already accelerate WAN ↔ LAN/Wi-Fi traffic, while `bridger` can cause short client stalls during 802.11k/v/r roaming and conflicts with `tc`/`nftables` filters.
-* **Correct flow accounting with HFO:** the per-client statistics of `nlbwmon` are based on the conntrack counters, which for hardware-offloaded flows come from the PPE. Two kernel patches make them correct:
-  * `target/linux/mediatek/patches-6.12/970-net-ethernet-mtk_ppe-fix-flow-accounting-on-unbind-and-rebind.patch` fixes the PPE flow counters when a flow is unbound or re-bound. Without it the counters jumped by ~4 GB (2³²) each time, and the traffic since the last poll was lost when the PPE unbound a flow by itself after a TCP FIN.
-  * `target/linux/mediatek/patches-6.12/971-netfilter-flowtable-fetch-hardware-counters-before-removing-a-flow.patch` makes the kernel read the hardware counters of a flow one last time before removing it; otherwise they are only polled every ~3 s.
+* **Correct per-client traffic statistics with HFO:** `nlbwmon` counts traffic from the conntrack counters, which for hardware-offloaded flows come from the PPE. Two kernel patches in `target/linux/mediatek/patches-6.12/` make them correct:
+  * `970` (MediaTek PPE driver) fixes the PPE flow counters when a flow is unbound or re-bound. Without it the counters jumped by ~4 GB (2³²) each time, and the traffic since the last poll was lost when the PPE unbound a flow by itself after a TCP FIN.
+  * `971` (netfilter flowtable) makes the kernel read the hardware counters of a flow one last time before removing it; otherwise they are only polled every ~3 s.
 
-  Without them, connections that close right after a transfer were undercounted: a 300 MiB download was counted at 50–86%, 30 downloads of 10 MiB at 4%. With them every test is counted at 105% of the payload (the payload plus TCP/IP headers).
-* **Interface counters with HFO:** offloaded traffic bypasses the CPU, so the software counters of the network interfaces never see it. The backported kernel patches `target/linux/generic/backport-6.12/799-0*-net-dsa-mt7530-*.patch` (`.get_stats64` from Linux 6.16 and its fix from 7.1) report the hardware counters of the switch ports as the statistics of `wan` and `lan1`–`lan3` instead, so the `wan` graph in *Statistics*, the LuCI realtime traffic graphs and `ip -s link` show the real traffic. `br-lan` (offloaded traffic never passes the software bridge) and the Wi-Fi interfaces (WED) still count only traffic handled by the CPU.
+  Without them, connections that close right after a transfer were undercounted: a 300 MiB download was counted at 50–86%, 30 downloads of 10 MiB at 4%. With them every test is counted at 105% of the payload (the payload plus TCP/IP headers). Both patches are submitted upstream ([openwrt/openwrt#26081](https://github.com/openwrt/openwrt/pull/26081)); details in [RESEARCH.md](RESEARCH.md#3-traffic-accounting-with-hardware-offloading).
+* **Interface counters with HFO:** offloaded traffic bypasses the CPU, so the software counters of the network interfaces never see it. Backported kernel patches (`799-0*`: `.get_stats64` of the `mt7530` switch driver from Linux 6.16 and its fix from 7.1) report the hardware counters of the switch ports as the statistics of `wan` and `lan1`–`lan3` instead, so the `wan` graph in *Statistics*, the LuCI realtime traffic graphs and `ip -s link` show the real traffic. `br-lan` (offloaded traffic never passes the software bridge) and the Wi-Fi interfaces (WED) still count only traffic handled by the CPU.
 * HFO bypasses the Linux queueing layer, so it cannot be combined with SQM — see [SQM or hardware offloading?](#sqm-or-hardware-offloading).
 
 ### 3. NVRAM Anti-Brick Protection ("6 reboots → orange LED" fix)
@@ -49,14 +127,14 @@ The goal of the build is **line-rate 1 Gbps wired and Wi-Fi 6 throughput, low la
 * `radio0` is the SoC-integrated **2.4 GHz (802.11n)** radio, `radio1` is the PCIe **5 GHz MT7915E (802.11ax)** radio. Each radio is configured by its `band`:
   * **Regulatory domain:** country `PA` for both radios (`CONFIG_PACKAGE_MAC80211_COUNTRY="PA"`). It allows more channels and higher transmit power than many other domains; set your own country in LuCI if local regulations require it.
   * **2.4 GHz:** `HT20`, channel `1`, WPA2 (`psk2+ccmp`) for the best IoT compatibility.
-  * **5 GHz:** `HE80`, non-DFS channel `36` (no 1–10 minute DFS/CAC radar drop-outs), `noscan='1'`, WPA2/WPA3 mixed mode (`sae-mixed`), `wnm_sleep_mode='1'`, `wnm_sleep_mode_no_keys='1'`, `dtim_period='3'`, `ocv='0'` (SAE client compatibility).
+  * **5 GHz:** `HE80` on the non-DFS channel `36` (no 1–10 minute DFS/CAC radar drop-outs), `noscan='1'` (no fallback to a narrower channel because of neighbouring networks), WPA2/WPA3 mixed mode (`sae-mixed`) with `ocv='0'` (SAE client compatibility), WNM-Sleep Mode (`wnm_sleep_mode='1'`, `wnm_sleep_mode_no_keys='1'`) and `dtim_period='3'`, which let phones sleep longer and save battery.
   * **SSIDs:** `<board>-<band>-<radio><last 4 hex digits of the MAC>`, e.g. `redmi-router-ax6s-2g-0a1b2` and `redmi-router-ax6s-5g-1a1b2`; password **`12345678`**.
 * Settings are applied only if the radio has no Wi-Fi key yet, so they never overwrite a restored configuration.
 * **Full `wpad-mbedtls`** instead of `wpad-basic-mbedtls`, OpenWrt's default for this router. The basic variant already supports WPA3 (SAE), 802.11r and 802.11k; the full one adds 802.11v (WNM), which the WNM-Sleep Mode of the 5 GHz defaults above needs, as well as WPS, WPA2/WPA3-Enterprise (802.1X, built-in RADIUS server), 802.11s mesh and Wi-Fi Easy Connect (DPP). Fast roaming (802.11k/v/r) stays off, as in stock OpenWrt: it only matters when several access points share one SSID. For such a network enable it in the wireless settings and install `usteer` (`apk add usteer luci-app-usteer`).
-* **Wi-Fi driver fixes from mt76 master** (`package/kernel/mt76/patches/0300…0317`, 18 patches on top of the mt76 of OpenWrt 25.12): kernel crashes around client connects and disconnects and around the recovery of the radio firmware, TX aggregation for voice-priority traffic on 5 GHz, correct HE DCM / VHT STBC client capabilities. On 2.4 GHz the adaptive sensitivity (SCS) of the MT7622 works again: a driver bug kept it at its default since 2022. On the busy 2.4 GHz channel of the test setup it halved the time the radio considered the channel busy (31 → 15 %) and reduced ping loss to the clients. The threshold never goes above the weakest connected client; details in [RESEARCH.md](RESEARCH.md#10-wi-fi-driver-fixes-from-mt76-master).
+* **Wi-Fi driver fixes from mt76 master** (18 patches `package/kernel/mt76/patches/0300…0317` on top of the mt76 of OpenWrt 25.12): kernel crashes around client connects and disconnects and around the recovery of the radio firmware, TX aggregation for voice-priority traffic on 5 GHz, correct HE DCM / VHT STBC client capabilities. On 2.4 GHz the adaptive sensitivity (SCS) of the MT7622 works again (a driver bug had kept it at its default since 2022): on the busy 2.4 GHz channel of the test setup it halved the time the radio considered the channel busy (31 → 15 %) and reduced ping loss to the clients. The threshold never goes above the signal of the weakest connected client. Details: [RESEARCH.md](RESEARCH.md#10-wi-fi-driver-fixes-from-mt76-master).
 
 ### 5. Network Stack and Memory (256 MB RAM)
-* **Packet steering** (`packet_steering='1'`, `steering_flows='128'`): pins the threaded NAPI workers of the Ethernet (`mtk_eth`) and Wi-Fi (`mt76`) drivers to different CPU cores and enables RPS + RFS with 128 flows. `irqbalance` is intentionally not installed: with threaded NAPI the packet processing runs in the threads that packet steering already distributes, while irqbalance only moves the IRQ top halves — without knowing where those threads are pinned, so it can split the Ethernet TX/RX IRQs away from their NAPI CPU. It can still be added with `apk add irqbalance`.
+* **Packet steering** (`packet_steering='1'`, `steering_flows='128'`): pins the threaded NAPI workers of the Ethernet (`mtk_eth`) and Wi-Fi (`mt76`) drivers to different CPU cores and enables RPS + RFS with 128 flows. `irqbalance` is not installed: it moves only the IRQs, not the NAPI threads that do the packet processing, so it can split the Ethernet IRQs away from their NAPI CPU, and on the device it brought no gain ([RESEARCH.md](RESEARCH.md#1-irqbalance-vs-packet-steering)). It can still be added with `apk add irqbalance`.
 * **Sysctl tuning** (`files/etc/sysctl.d/99-bbr.conf`):
   * **TCP BBR**, `fq_codel` and TCP Fast Open (`tcp_fastopen=3`). They apply to TCP connections terminated on the router itself (LuCI, DoH proxy, `iperf3` server, package downloads), not to traffic forwarded for LAN clients. `fq_codel` is the OpenWrt default qdisc anyway.
   * Larger conntrack table (`nf_conntrack_max=32768`) and adjusted TCP/UDP timeouts for P2P and gaming.
@@ -67,7 +145,7 @@ The goal of the build is **line-rate 1 Gbps wired and Wi-Fi 6 throughput, low la
 * **Services are restarted indefinitely** after crashes (procd `respawn_retry='0'`); `https-dns-proxy` tolerates WAN reconnects (`conn_loss_time='30'`).
 
 ### 6. How the Defaults Are Applied (`99-custom-settings`)
-`uci-defaults` scripts run on the first boot after **every** flash, including a sysupgrade that keeps settings. `files/etc/uci-defaults/99-custom-settings` applies the settings from sections 2 and 5 and the DoH, statistics and LuCI theme defaults (see [Pre-installed packages](#pre-installed-packages)) **only once per configuration** and stores a marker in `/etc/config/ax3200`. Your own changes (for example HFO disabled in favour of SQM) are therefore preserved across upgrades. Only removing the collectd include of older builds runs on every flash. The list of LuCI themes is brought in line with the installed themes on every boot (`files/etc/init.d/luci-themes`), so this also works after restoring a settings backup made on another firmware. To re-apply the build defaults:
+`uci-defaults` scripts run on the first boot after **every** flash, including a sysupgrade that keeps settings. `files/etc/uci-defaults/99-custom-settings` applies the settings from sections 2 and 5 and the DoH, statistics, DDNS autostart and LuCI theme defaults (see [Pre-installed packages](#pre-installed-packages)) **only once per configuration** and stores a marker in `/etc/config/ax3200`. Your own changes (for example HFO disabled in favour of SQM) are therefore preserved across upgrades. Only removing the collectd include of older builds runs on every flash. The list of LuCI themes is brought in line with the installed themes on every boot (`files/etc/init.d/luci-themes`), so this also works after restoring a settings backup made on another firmware. To re-apply the build defaults:
 ```sh
 uci -q delete ax3200.defaults && uci commit ax3200
 sh /rom/etc/uci-defaults/99-custom-settings
@@ -137,73 +215,11 @@ wifi reload
 * **Web UI:** `luci`, `luci-ssl`, full Russian and English localization (`CONFIG_LUCI_LANG_ru=y`; the language follows the browser). Themes: **Footstrap** (default) — the new LuCI theme with a collapsible sidebar or top bar, light/dark modes, a menu search and an *Appearance* page for colours, density, layout and wallpaper — and the stock **Bootstrap**. After an upgrade from an older build or after restoring a settings backup made on another firmware, Footstrap is listed again and a removed theme (OpenWrt-2020, Material) is replaced with Footstrap automatically.
 * **Encrypted DNS (DoH, HTTP/2 & HTTP/3):** `https-dns-proxy` + `luci-app-https-dns-proxy` (Cloudflare and Google out of the box). Clients are not forced to use the router's DNS (`force_dns='0'`), so client-side encrypted DNS such as Android Private DNS (DoT) keeps working.
 * **SQM / CAKE QoS:** `luci-app-sqm` (`sqm-scripts`, `kmod-sched-cake`) — installed but **disabled** by default.
-* **Home network services:** `luci-app-upnp` (`miniupnpd-nftables`), `luci-app-ddns` (with a LuCI fix from `feeds-patches/luci/`: without internet its status no longer leaves LuCI's Overview empty for 10 s per DDNS service, the two disabled examples included; its autostart is off while no DDNS service is enabled: set up a service, then *Services → Dynamic DNS → Start DDNS*), `luci-app-wol` (`etherwake`), `luci-app-watchcat`, `luci-app-wifischedule`, `luci-app-uhttpd`, `luci-app-cpufreq` (CPU frequency governor, *System → CPU Frequency*; a package of this build in `package/ax3200/`).
+* **Home network services:**
+  * `luci-app-upnp` (`miniupnpd-nftables`), `luci-app-wol` (`etherwake`), `luci-app-watchcat`, `luci-app-wifischedule`, `luci-app-uhttpd`;
+  * `luci-app-ddns`: its autostart is off while no DDNS service is enabled (set up a service, then *Services → Dynamic DNS → Start DDNS*). With a LuCI fix from `feeds-patches/luci/` ([openwrt/luci#9154](https://github.com/openwrt/luci/pull/9154)): without internet the DDNS status no longer leaves LuCI's Overview empty for 10 s per service;
+  * `luci-app-cpufreq`: CPU frequency governor (*System → CPU Frequency*), a package of this build in `package/ax3200/`.
 * **Monitoring and diagnostics:** `luci-app-nlbwmon` (per-client traffic accounting), `luci-app-statistics` (`collectd` graphs of CPU load and frequency, RAM, `br-lan`/`wan`, Wi-Fi, conntrack, hardware sensors and the MT7915E temperature; the `wan` graph includes offloaded traffic, see [Interface counters with HFO](#2-hardware-nat-and-wi-fi-6-acceleration-hfo--wed)), `luci-app-ttyd` (web terminal), CLI tools `htop`, `nano`, `curl`, `iperf3`, `ethtool`, `tcpdump-mini`, `bind-dig`, `mtr-nojson`.
-
----
-
-## Installation
-
-> [!IMPORTANT]
-> Read the [OpenWrt wiki page for the Xiaomi AX3200 / Redmi AX6S](https://openwrt.org/toh/xiaomi/ax3200) first. It covers **backing up the flash partitions**, **TFTP and UART recovery** and hardware-revision specific issues that are not repeated here. Flashing third-party firmware is at your own risk.
-
-**Known risks (from the wiki):**
-* Some newer units have MTD partitions shifted by `-0x20000` and can brick on sysupgrade; on others even the factory image may fail. AX3200 units produced **after 12/2023** with telnet disabled are reported to be affected. Before the first sysupgrade of a unit installed from `factory.bin`, run the checks from the wiki ("Known Issue #1"): `hexdump /dev/mtd8 | head` must start with `0000000 0dd0 edfe`, and `fw_printenv | grep -e ^flag_try -e ^boot_fw` must show `boot_fw1=run boot_rd_img;bootm`.
-* The "6 reboots → orange LED" soft-brick is prevented by this build's `bootcount` once OpenWrt has booted (see [section 3](#3-nvram-anti-brick-protection-6-reboots--orange-led-fix)).
-
-### Firmware Images
-Built images are placed in `bin/targets/mediatek/mt7622/`:
-| File | Purpose |
-|---|---|
-| `openwrt-mediatek-mt7622-xiaomi_redmi-router-ax6s-factory.bin` | First installation from the stock firmware (or from OpenWrt ≤ 23.05). Contains `ubi-loader` padded to 512 KiB followed by the UBI image. |
-| `openwrt-mediatek-mt7622-xiaomi_redmi-router-ax6s-squashfs-sysupgrade.itb` | Regular upgrade from OpenWrt 24.10 / 25.12 (UBI layout). |
-| `openwrt-mediatek-mt7622-xiaomi_redmi-router-ax6s-sysupgrade.ubi` | Raw UBI image extracted from `factory.bin` by `build.sh`, for older builds that reject the `.itb` (see below). |
-| `openwrt-mediatek-mt7622-xiaomi_redmi-router-ax6s-ubi-loader.itb` | Second-stage U-Boot (`ubi-loader`) alone. |
-| `openwrt-mediatek-mt7622-xiaomi_redmi-router-ax6s-initramfs-recovery.itb` | Initramfs recovery image (TFTP). |
-
-### A. From the Stock Firmware with XMiR-Patcher (recommended)
-[XMiR-Patcher](https://github.com/openwrt-xiaomi/xmir-patcher) uses a vulnerability in the stock web interface to get SSH access and flashes the firmware for you. It works on Windows, Linux and macOS.
-
-1. Finish the initial setup of the stock firmware (the web interface password is required) and connect your PC to a **LAN** port of the router. The stock firmware is at `192.168.31.1`.
-2. Download XMiR-Patcher (*Code → Download ZIP*) and unpack it.
-3. Start it: **Windows** — `run.bat`; **Linux/macOS** — install Python 3.8+ and `openssl`, then `./run.sh`.
-4. If the router is not at `192.168.31.1`, choose `1 - Set IP-address`.
-5. Choose **`2 - Connect to device (install exploit)`** and enter the web interface password when asked.
-6. Choose **`4 - Create full backup`**. The dumps of all flash partitions are saved to the `backups/` folder of XMiR-Patcher — **keep them safe**: they contain the factory calibration data unique to your unit and are needed to return to stock or recover from a brick.
-7. Copy **only** `openwrt-mediatek-mt7622-xiaomi_redmi-router-ax6s-factory.bin` into the `firmware/` folder of XMiR-Patcher (no other images in that folder).
-8. Choose **`7 - Install firmware (from directory "firmware")`** and wait until the router reboots.
-9. Open `http://192.168.1.1` (user `root`, no password), set a root password and change the Wi-Fi password.
-
-If the exploit does not work with your stock firmware version, see the wiki for the alternatives (stock firmware with telnet, `netmode 4` methods, UART).
-
-### B. Upgrade from OpenWrt 24.10 / 25.12
-LuCI → *System → Backup / Flash Firmware → Flash new firmware image* with the `...-squashfs-sysupgrade.itb` file, or over SSH:
-```sh
-sysupgrade /tmp/openwrt-mediatek-mt7622-xiaomi_redmi-router-ax6s-squashfs-sysupgrade.itb
-```
-
-### C. Upgrade from OpenWrt 23.05 or Older (old flash layout)
-24.10 changed the flash layout (`ubi-loader` + UBI), so sysupgrade from 23.05 is not possible. Install `factory.bin` with `mtd` as described in the wiki ("24.10 UBI layout", method 1). The configuration is reset — make a backup first. After restoring a 23.05 backup, run:
-```sh
-uci set system.@system[0].compat_version="2.0"
-uci commit system
-```
-
-### D. Older Builds That Reject the `.itb` Image
-Some older third-party 24.10 builds refuse the FIT image with `Cannot find ubinized rootfs in the factory FIT-image`. Flash the raw UBI image instead (`build.sh` creates it; manually: `dd if=openwrt-mediatek-mt7622-xiaomi_redmi-router-ax6s-factory.bin of=sysupgrade.ubi bs=512K skip=1`). Copy it to `/tmp/` on the router and run (settings are not kept):
-```sh
-sysupgrade -n /tmp/openwrt-mediatek-mt7622-xiaomi_redmi-router-ax6s-sysupgrade.ubi
-```
-
-### E. Updating `ubi-loader` (optional)
-`sysupgrade` does not touch the `ubi-loader` partition. To update it to the version from this build:
-```sh
-mtd write /tmp/openwrt-mediatek-mt7622-xiaomi_redmi-router-ax6s-ubi-loader.itb ubi-loader
-reboot
-```
-
-### Backup and Recovery
-Backing up the flash partitions, TFTP recovery and UART access are described on the [OpenWrt wiki page](https://openwrt.org/toh/xiaomi/ax3200).
 
 ---
 
