@@ -1,0 +1,27 @@
+#!/bin/sh
+# Wireless interfaces that are recreated (wifi down/up, a schedule, changed settings)
+# drop out of the fw4 flowtable: the kernel removes a device from a flowtable when it goes away,
+# and only a firewall reload adds it back. Until then the Wi-Fi -> WAN direction misses the
+# flowtable fast path. Reload the firewall once the new interface is bridged, if it is missing.
+
+[ "$ACTION" = add ] || exit 0
+[ -d "/sys/class/net/$INTERFACE/phy80211" ] || exit 0
+/etc/init.d/firewall enabled || exit 0
+
+(
+	# netifd adds the interface to its bridge a moment later
+	i=0
+	while [ "$i" -lt 30 ] && [ ! -e "/sys/class/net/$INTERFACE/master" ]; do
+		sleep 1
+		i=$((i + 1))
+	done
+	# the other interfaces of the same wifi up come up meanwhile; one reload adds them all
+	sleep 3
+	lock /var/lock/firewall-wifi
+	if ft=$(nft list flowtable inet fw4 ft 2>/dev/null) &&
+	   ! echo "$ft" | grep -q "\"$INTERFACE\""; then
+		logger -t firewall "Reloading firewall: $INTERFACE is not in the flowtable"
+		fw4 -q reload
+	fi
+	lock -u /var/lock/firewall-wifi
+) </dev/null >/dev/null 2>&1 &
