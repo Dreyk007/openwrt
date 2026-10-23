@@ -152,10 +152,20 @@ make download -j"$JOBS"
 success "Source downloads complete."
 
 # 6. Compile firmware
+# Timestamp of the files in the image: the date of this fork's last commit. Otherwise the
+# release tag's version.date gives every build of a release the same one, and with it the
+# same ?v= that LuCI appends to its scripts and styles (the mtime of /lib/apk/db/installed),
+# so a browser can keep using the cached files of another build. It is also the clock a
+# router starts with after a factory reset, until NTP sets it.
+SDE_ARGS=()
+if SDE=$(git log -1 --no-show-signature --format=%ct 2>/dev/null) && [ -n "$SDE" ]; then
+    SDE_ARGS=("SOURCE_DATE_EPOCH=$SDE")
+    info "SOURCE_DATE_EPOCH=$SDE ($(date -u -d "@$SDE" '+%F %T') UTC, the last commit)"
+fi
 info "Starting multi-threaded firmware compilation (-j$JOBS)..."
-if ! make -j"$JOBS"; then
+if ! make -j"$JOBS" "${SDE_ARGS[@]}"; then
     warn "Multi-threaded build failed. Retrying in single-thread debug mode (V=s)..."
-    make -j1 V=s
+    make -j1 V=s "${SDE_ARGS[@]}"
 fi
 success "Firmware compilation finished successfully."
 
