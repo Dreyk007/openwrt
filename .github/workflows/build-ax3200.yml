@@ -110,27 +110,61 @@ jobs:
 
           url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY"
           prefix=openwrt-mediatek-mt7622-xiaomi_redmi-router-ax6s
+          # GitHub lists the assets below the notes, so the notes start with direct links to
+          # the two images most people need and keep everything else in collapsed sections.
+          link() { echo "[\`…${1#"$prefix"}\`]($url/releases/download/$tag/$1)"; }
+          size() { numfmt --to=iec-i --suffix=B --format='%.1f' "$(stat -c %s "release/$1")" | sed 's/[KMG]iB$/ &/'; }
+          prev=$(git describe --tags --abbrev=0 --match 'v*-ax3200-r*' HEAD 2> /dev/null || true)
           {
-            echo "OpenWrt **${ver}** for **Xiaomi AX3200 / Redmi AX6S**, built from [\`${GITHUB_SHA::10}\`]($url/commit/$GITHUB_SHA) by GitHub Actions."
+            echo "Optimized OpenWrt **${ver}** for **Xiaomi AX3200 / Redmi AX6S** · [Installation guide]($url/blob/$GITHUB_SHA/README.md#installation) · [Инструкция на русском]($url/blob/$GITHUB_SHA/README.ru.md#установка)"
             echo
-            echo "* Revision: \`$(cat "$TARGET_DIR/version.buildinfo")\`"
-            echo "* Kernel vermagic (official, compatible with official kmods): \`$(cat vermagic-mediatek-mt7622-"$ver".list)\`"
-            echo "* Installation and upgrade: [README]($url/blob/$GITHUB_SHA/README.md#installation) · [на русском]($url/blob/$GITHUB_SHA/README.ru.md#установка)"
+            echo "### Download"
+            echo
+            echo "| | File | Size |"
+            echo "|---|---|---|"
+            echo "| **First installation** from the stock firmware (XMiR-Patcher) or from OpenWrt ≤ 23.05 | $(link "$prefix-factory.bin") | $(size "$prefix-factory.bin") |"
+            echo "| **Upgrade** from OpenWrt 24.10 / 25.12, keeps the settings | $(link "$prefix-squashfs-sysupgrade.itb") | $(size "$prefix-squashfs-sysupgrade.itb") |"
+            echo
+            echo "<details><summary>Other files</summary>"
             echo
             echo "| File | Purpose |"
             echo "|---|---|"
-            echo "| \`$prefix-factory.bin\` | First installation from the stock firmware (XMiR-Patcher) or from OpenWrt ≤ 23.05 |"
-            echo "| \`$prefix-squashfs-sysupgrade.itb\` | Upgrade from OpenWrt 24.10 / 25.12 |"
             echo "| \`$prefix-sysupgrade.ubi\` | Raw UBI image for older builds that reject the \`.itb\` |"
-            echo "| \`$prefix-ubi-loader.itb\` | Second-stage U-Boot (\`ubi-loader\`) |"
+            echo "| \`$prefix-ubi-loader.itb\` | Second-stage U-Boot (\`ubi-loader\`); \`sysupgrade\` does not update it |"
             echo "| \`$prefix-initramfs-recovery.itb\` | Initramfs recovery image (TFTP) |"
+            echo "| \`mt7622-ram-1ddr-bl2.bin\`, \`mt7622-ram-2ddr-bl2.bin\` | BL2 that runs from RAM, for recovery over UART (e.g. \`mtk_uartboot\`) |"
+            echo "| \`$prefix.manifest\` | Installed packages and their versions |"
+            echo "| \`config.buildinfo\`, \`feeds.buildinfo\`, \`version.buildinfo\`, \`profiles.json\` | Build configuration, feed revisions, OpenWrt revision, image metadata |"
+            echo "| \`sha256sums\` | SHA256 of all files |"
             echo
-            echo "### SHA256"
+            echo "</details>"
+            if [ -n "$prev" ]; then
+              echo
+              echo "<details><summary>Changes since $prev</summary>"
+              echo
+              git log --first-parent --format="* %s ([\`%h\`]($url/commit/%H))" "$prev..HEAD"
+              echo
+              echo "</details>"
+            fi
+            echo
+            echo "<details><summary>Build details</summary>"
+            echo
+            echo "* Commit [\`${GITHUB_SHA::10}\`]($url/commit/$GITHUB_SHA), built by [GitHub Actions]($url/actions/runs/$GITHUB_RUN_ID)"
+            echo "* Revision: \`$(cat "$TARGET_DIR/version.buildinfo")\`"
+            echo "* Kernel vermagic (official, compatible with official kmods): \`$(cat vermagic-mediatek-mt7622-"$ver".list)\`"
+            echo
+            echo "</details>"
+            echo
+            echo "<details><summary>SHA256 checksums</summary>"
+            echo
             echo '```'
             cat release/sha256sums
             echo '```'
             echo
-            echo "### Verification"
+            echo "</details>"
+            echo
+            echo "<details><summary>Verifying the files</summary>"
+            echo
             echo "Every file has a signed build provenance attestation that ties it to this workflow run and commit. With the [GitHub CLI](https://cli.github.com/):"
             echo '```'
             echo "gh attestation verify $prefix-squashfs-sysupgrade.itb --repo $GITHUB_REPOSITORY"
@@ -140,10 +174,12 @@ jobs:
             echo "gh release verify $tag --repo $GITHUB_REPOSITORY"
             echo "gh release verify-asset $tag $prefix-squashfs-sysupgrade.itb --repo $GITHUB_REPOSITORY"
             echo '```'
+            echo
+            echo "</details>"
           } > release-notes.md
 
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
-          echo "title=OpenWrt $ver for Xiaomi AX3200 / Redmi AX6S ($tag)" >> "$GITHUB_OUTPUT"
+          echo "title=Optimized OpenWrt $ver for Xiaomi AX3200 / Redmi AX6S ($tag)" >> "$GITHUB_OUTPUT"
 
       # Sigstore-signed SLSA provenance for every published file, recorded in the public
       # transparency log: gh attestation verify <file> --repo <owner>/<repo>
