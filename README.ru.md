@@ -41,7 +41,7 @@
 * Софт-брик «6 перезагрузок → оранжевый индикатор» предотвращается `bootcount` этой сборки, как только OpenWrt загрузилась (см. [раздел 3](#3-защита-nvram-от-софт-брика-6-перезагрузок--оранжевый-индикатор)).
 
 ### Файлы прошивки
-Собранные образы появляются в `bin/targets/mediatek/mt7622/`:
+Скачайте образы из [последнего релиза](https://github.com/Dreyk007/openwrt/releases/latest) (при локальной сборке они появляются в `bin/targets/mediatek/mt7622/`):
 | Файл | Назначение |
 |---|---|
 | `openwrt-mediatek-mt7622-xiaomi_redmi-router-ax6s-factory.bin` | Первая установка со стоковой прошивки (или с OpenWrt ≤ 23.05). Содержит `ubi-loader`, дополненный до 512 КБ, и следом UBI-образ. |
@@ -49,6 +49,8 @@
 | `openwrt-mediatek-mt7622-xiaomi_redmi-router-ax6s-sysupgrade.ubi` | «Сырой» UBI-образ, извлечённый `build.sh` из `factory.bin`, для старых сборок, не принимающих `.itb` (см. ниже). |
 | `openwrt-mediatek-mt7622-xiaomi_redmi-router-ax6s-ubi-loader.itb` | Отдельно загрузчик второго уровня (`ubi-loader`). |
 | `openwrt-mediatek-mt7622-xiaomi_redmi-router-ax6s-initramfs-recovery.itb` | Initramfs-образ для восстановления (TFTP). |
+
+**Копирование файлов на роутер.** В разделах Б–Д образ копируется в `/tmp` на роутере командой `scp`; она есть в Linux, macOS и Windows 10/11 (в Windows можно также использовать WinSCP с протоколом SCP). Ключ `-O` нужен, потому что в OpenWrt нет SFTP-сервера. Если адрес роутера не `192.168.1.1`, подставьте свой.
 
 ### А. Со стоковой прошивки через XMiR-Patcher (рекомендуется)
 [XMiR-Patcher](https://github.com/openwrt-xiaomi/xmir-patcher) получает доступ по SSH через уязвимость стокового веб-интерфейса и сам прошивает образ. Работает в Windows, Linux и macOS.
@@ -59,37 +61,79 @@
 4. Если адрес роутера не `192.168.31.1`, выберите `1 - Set IP-address`.
 5. Выберите **`2 - Connect to device (install exploit)`** и по запросу введите пароль веб-интерфейса.
 6. Выберите **`4 - Create full backup`**. Дампы всех разделов флеш-памяти сохраняются в папку `backups/` XMiR-Patcher — **сохраните их в надёжном месте**: в них уникальные для вашего экземпляра калибровочные данные, они нужны для возврата на сток и восстановления после брика.
-7. Скопируйте **только** `openwrt-mediatek-mt7622-xiaomi_redmi-router-ax6s-factory.bin` в папку `firmware/` XMiR-Patcher (других образов там быть не должно).
+7. Скачайте `openwrt-mediatek-mt7622-xiaomi_redmi-router-ax6s-factory.bin` из [последнего релиза](https://github.com/Dreyk007/openwrt/releases/latest) и скопируйте **только** этот файл в папку `firmware/` XMiR-Patcher (других образов там быть не должно).
 8. Выберите **`7 - Install firmware (from directory "firmware")`** и дождитесь перезагрузки роутера.
 9. Откройте `http://192.168.1.1` (пользователь `root`, без пароля), задайте пароль root и смените пароль Wi-Fi.
 
 Если эксплойт не срабатывает на вашей версии стоковой прошивки, альтернативы (стоковая прошивка с telnet, методы `netmode 4`, UART) описаны в вики.
 
 ### Б. Обновление с OpenWrt 24.10 / 25.12
-LuCI → *Система → Восстановление / Обновление → Установить новый образ прошивки* с файлом `...-squashfs-sysupgrade.itb` или по SSH:
+Настройки сохраняются.
+
+1. Скачайте `openwrt-mediatek-mt7622-xiaomi_redmi-router-ax6s-squashfs-sysupgrade.itb` из [последнего релиза](https://github.com/Dreyk007/openwrt/releases/latest).
+2. В LuCI откройте *Система → Восстановление / Обновление*, в разделе *Установить новый образ прошивки* нажмите *Загрузка образа...*, выберите файл и нажмите *Загрузить*.
+3. Оставьте отмеченным *Сохранить настройки и оставить текущую конфигурацию* и нажмите *Продолжить*. Роутер запишет образ и перезагрузится, это занимает несколько минут; не выключайте его в это время.
+
+По SSH вместо шагов 2–3:
 ```sh
-sysupgrade /tmp/openwrt-mediatek-mt7622-xiaomi_redmi-router-ax6s-squashfs-sysupgrade.itb
+scp -O openwrt-mediatek-mt7622-xiaomi_redmi-router-ax6s-squashfs-sysupgrade.itb root@192.168.1.1:/tmp/
+ssh root@192.168.1.1 sysupgrade /tmp/openwrt-mediatek-mt7622-xiaomi_redmi-router-ax6s-squashfs-sysupgrade.itb
 ```
 
 ### В. Обновление с OpenWrt 23.05 и старше (старая разметка)
-В 24.10 изменилась разметка флеш-памяти (`ubi-loader` + UBI), поэтому sysupgrade с 23.05 невозможен. Установите `factory.bin` через `mtd`, как описано в вики («24.10 UBI layout», метод 1). Настройки сбрасываются — сначала сделайте резервную копию. После восстановления копии с 23.05 выполните:
-```sh
-uci set system.@system[0].compat_version="2.0"
-uci commit system
-```
+Начиная с 24.10 у этого роутера другая разметка флеш-памяти: загрузчик второго уровня (`ubi-loader`), а за ним один раздел UBI с системой. `sysupgrade` из OpenWrt 23.05 и старше перейти на неё не может, поэтому образ один раз записывается вручную через `mtd`. **Все настройки сбрасываются.** Ниже — шаги способа 1 из [вики OpenWrt](https://openwrt.org/toh/xiaomi/ax3200#upgrading_from_2305_and_earlier_to_upcoming_2410_or_snapshot) (раздел *Upgrading from 23.05 and earlier to upcoming 24.10 or snapshot*, англ.); там же описан способ через TFTP.
+
+1. Сделайте резервную копию настроек: LuCI → *Система → Восстановление / Обновление* → *Создать архив*.
+2. Скачайте `openwrt-mediatek-mt7622-xiaomi_redmi-router-ax6s-factory.bin` из [последнего релиза](https://github.com/Dreyk007/openwrt/releases/latest).
+3. Подключите компьютер кабелем к LAN-порту и скопируйте файл на роутер под именем `/tmp/factory.bin`:
+   ```sh
+   scp -O openwrt-mediatek-mt7622-xiaomi_redmi-router-ax6s-factory.bin root@192.168.1.1:/tmp/factory.bin
+   ```
+4. Зайдите на роутер командой `ssh root@192.168.1.1` и выполните:
+   ```sh
+   mount -o remount,ro /
+   mount -o remount,ro /overlay
+   cd /tmp
+   dd if=factory.bin bs=1M count=4 | mtd write - kernel
+   dd if=factory.bin bs=1M skip=4 | mtd -r write - ubi
+   ```
+   Если первая команда ответит `Resource busy`, не обращайте внимания. После последней команды роутер перезагрузится.
+5. Откройте `http://192.168.1.1` (пользователь `root`, без пароля). Задайте пароль root и пароль Wi-Fi или восстановите архив из шага 1: *Система → Восстановление / Обновление* → *Загрузить архив...*.
+6. Если вы восстановили архив, выполните по SSH, иначе следующие обновления (раздел Б) будут отклоняться:
+   ```sh
+   uci set system.@system[0].compat_version="2.0"
+   uci commit system
+   ```
+   Восстановленные настройки заменяют настройки этой сборки (HFO, packet steering и другие); чтобы применить их поверх, см. [раздел 6](#6-как-применяются-настройки-99-custom-settings).
 
 ### Г. Старые сборки, не принимающие образ `.itb`
-Некоторые старые сторонние сборки 24.10 отклоняют FIT-образ с ошибкой `Cannot find ubinized rootfs in the factory FIT-image`. Вместо него прошейте «сырой» UBI-образ (его создаёт `build.sh`; вручную: `dd if=openwrt-mediatek-mt7622-xiaomi_redmi-router-ax6s-factory.bin of=sysupgrade.ubi bs=512K skip=1`). Скопируйте его в `/tmp/` на роутере и выполните (настройки не сохраняются):
-```sh
-sysupgrade -n /tmp/openwrt-mediatek-mt7622-xiaomi_redmi-router-ax6s-sysupgrade.ubi
-```
+Некоторые старые сторонние сборки 24.10 (уже с новой разметкой) отклоняют `openwrt-mediatek-mt7622-xiaomi_redmi-router-ax6s-squashfs-sysupgrade.itb` с ошибкой `Cannot find ubinized rootfs in the factory FIT-image`. Тогда прошейте «сырой» UBI-образ. **Настройки не сохраняются.**
+
+1. Сделайте резервную копию настроек: LuCI → *Система → Восстановление / Обновление* → *Создать архив*.
+2. Скачайте `openwrt-mediatek-mt7622-xiaomi_redmi-router-ax6s-sysupgrade.ubi` из [последнего релиза](https://github.com/Dreyk007/openwrt/releases/latest).
+3. Скопируйте его на роутер:
+   ```sh
+   scp -O openwrt-mediatek-mt7622-xiaomi_redmi-router-ax6s-sysupgrade.ubi root@192.168.1.1:/tmp/
+   ```
+4. Зайдите на роутер командой `ssh root@192.168.1.1` и выполните:
+   ```sh
+   sysupgrade -n /tmp/openwrt-mediatek-mt7622-xiaomi_redmi-router-ax6s-sysupgrade.ubi
+   ```
+5. После перезагрузки откройте `http://192.168.1.1` (пользователь `root`, без пароля) и задайте пароли или восстановите архив из шага 1 (*Загрузить архив...*).
 
 ### Д. Обновление `ubi-loader` (при необходимости)
-`sysupgrade` не трогает раздел `ubi-loader`. Чтобы обновить его до версии из этой сборки:
-```sh
-mtd write /tmp/openwrt-mediatek-mt7622-xiaomi_redmi-router-ax6s-ubi-loader.itb ubi-loader
-reboot
-```
+`sysupgrade` не трогает раздел `ubi-loader`: на роутере остаётся версия, записанная вместе с `factory.bin`. Чтобы обновить его до версии из этой сборки:
+
+1. Скачайте `openwrt-mediatek-mt7622-xiaomi_redmi-router-ax6s-ubi-loader.itb` из [последнего релиза](https://github.com/Dreyk007/openwrt/releases/latest).
+2. Скопируйте его на роутер:
+   ```sh
+   scp -O openwrt-mediatek-mt7622-xiaomi_redmi-router-ax6s-ubi-loader.itb root@192.168.1.1:/tmp/
+   ```
+3. Зайдите на роутер командой `ssh root@192.168.1.1` и выполните (не выключайте роутер во время записи):
+   ```sh
+   mtd write /tmp/openwrt-mediatek-mt7622-xiaomi_redmi-router-ax6s-ubi-loader.itb ubi-loader
+   reboot
+   ```
 
 ### Резервное копирование и восстановление
 Резервное копирование разделов, восстановление по TFTP и доступ через UART описаны на [странице вики OpenWrt](https://openwrt.org/toh/xiaomi/ax3200).
