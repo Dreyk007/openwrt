@@ -4,6 +4,10 @@
 
 # OpenWrt 25.12 (`xq-25.12`) — Optimized Custom Build for Xiaomi AX3200 / Redmi AX6S
 
+[![Download the latest release](https://img.shields.io/github/v/release/Dreyk007/openwrt?style=for-the-badge&label=Download&color=2ea44f)](https://github.com/Dreyk007/openwrt/releases/latest) [![Installation](https://img.shields.io/badge/Installation-0969da?style=for-the-badge)](#installation)
+
+**Which file:** `…-factory.bin` for the first installation from the stock firmware, `…-squashfs-sysupgrade.itb` to upgrade from OpenWrt 24.10 / 25.12 ([details](#installation)).
+
 This repository (branch **`xq-25.12`**) is a fork of the stable **OpenWrt 25.12.6** release (`Linux 6.12.112`) tailored for the **Xiaomi Router AX3200 (RB01) / Redmi Router AX6S (RB03)** built on the **MediaTek MT7622B + MT7531BE + MT7915E** platform (it also carries the MediaTek changes from the `remittor` tree).
 
 The goal of the build is **line-rate 1 Gbps wired and Wi-Fi 6 throughput, low latency, U-Boot NVRAM anti-brick protection and a complete out-of-the-box home router feature set**, while staying compatible with the official OpenWrt package repository.
