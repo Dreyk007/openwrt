@@ -41,11 +41,14 @@ A/B with `irqbalance` and with packet steering only (both directions, 4 streams,
 
 ## 3. Traffic accounting with hardware offloading
 
-nlbwmon counts the conntrack counters, which for offloaded flows come from the PPE. Three bugs were found and fixed:
+nlbwmon counts the conntrack counters, which for offloaded flows come from the PPE. Six bugs were found and fixed:
 
 1. **Phantom jumps of ~4 GB (2³²):** the PPE flow counters went backwards on unbind/rebind, and `nf_ct_acct_add()` truncated the negative delta to 32 bits. About 10 jumps per hour before the fix; none in 43- and 62-minute load tests after it (patch `970`).
 2. **Lost tail of every closed connection:** the flowtable polls the counters only every ~3 s and removed the hardware entry after a TCP FIN without a final poll (patch `971`).
 3. **Lost tail even with a final poll:** the PPE unbinds an entry by itself after a TCP FIN, and the driver then folded only its software copy of the counters, not the hardware MIB counter (second part of patch `970`).
+4. **A neighbour in the same PPE bucket stopped counting:** on the MT7622 a bucket of the PPE hash table has two slots. When a second flow bound to the other slot, the driver detached the first one, although it stayed bound in hardware: its counters stopped while it kept sending, and after the flowtable removed it, its PPE entry stayed bound and kept forwarding. Patch `970` now detaches only the entry naming the slot being bound, as proposed in [openwrt/openwrt#26107](https://github.com/openwrt/openwrt/pull/26107).
+5. **A firewall reload dropped the offloaded flows:** fw4 replaces the flowtable on every reload, and its block callbacks were unbound before the flows were freed, so the driver never removed their PPE entries. The flows stopped counting, were never offloaded again (their driver entries blocked the new ones), and kept forwarding in hardware until they ended. Fixed by patches `972` and `973` from the SmartRG tree ([target-cascade](https://github.com/cmonroe/target-cascade)).
+6. **Flows with one direction on the CPU were polled late:** the flowtable polls the hardware counters only when a tenth of the flow timeout has passed since the timeout was last refreshed, and every packet of the CPU direction refreshes it. On the MT7622 Wi-Fi → WAN always takes the CPU (no WED RX), so the counts of a Wi-Fi download reached conntrack only when it paused, and `nf_ct_acct_add()` truncated a poll of 4 GiB or more to 32 bits. Patches `975` and `974`, found in the code of 6.12.
 
 | Test (nlbwmon count / payload) | before | patch `971` only | `970` + `971` |
 |---|---|---|---|
@@ -57,7 +60,23 @@ nlbwmon counts the conntrack counters, which for offloaded flows come from the P
 | 1-hour mixed load, share of the payload | 90.7 % | — | **105.0 %** |
 | All clients vs the WAN port hardware counter | 86.9 % | — | **100.0 %** |
 
-105 % is the payload plus TCP/IP headers. **Decision:** patches `970` and `971` (see [UPGRADING.md](UPGRADING.md), checklist items 11–12).
+105 % is the payload plus TCP/IP headers.
+
+**Bucket test (bug 4):** three 5 Mbit/s UDP flows from the build PC to an iperf3 server, with source ports chosen with the driver's hash function (`mtk_ppe_hash_entry()`) so that flow B lands in the bucket of flow A (slots `0x2fce` and `0x2fcf` in `/sys/kernel/debug/ppe0/bind`) and flow C in another bucket. B starts 45 s after A. Conntrack bytes against what iperf3 sent:
+
+| Flow | sent (with headers) | before | after |
+|---|---|---|---|
+| A, first in the bucket | 64.5 MB | **29.1 MB**, stopped when B bound; its PPE entry outlived the flow | 64.5 MB |
+| B, its neighbour | 35.5 MB | 35.5 MB | 35.5 MB |
+| C, another bucket | 48.4 MB | 48.4 MB | 48.4 MB |
+
+After the fix all three are counted to within 600 bytes (the PPE counts the 18 bytes of L2 headers per packet too), no PPE entry outlives its flow, and a 145 MB download closed at once is still counted at 105.2 % (2 of 2).
+
+**Firewall reload test (bug 5):** one 5 Mbit/s UDP flow, `/etc/init.d/firewall reload` after 30 s, conntrack bytes against what iperf3 sent (58.04 MB with headers): before, 18.6 MB, the flow was never offloaded again, and its PPE entry kept forwarding until the flow ended; after, 58.04 MB, the flow stayed offloaded and its PPE entry went away with it. The bucket test and the download test give the same results as above.
+
+**Wi-Fi download (bug 6):** one HTTPS connection from a 5 GHz client for 90 s, conntrack sampled every 2 s. With `975` the download direction (WAN → Wi-Fi, PPE + WED) reached conntrack every 3–4 s during the transfer, and 5.18 GB of payload on that one connection were counted as 5.55 GB (107 %, as for Wi-Fi before), more than 4 GiB without loss. Without the patches the whole download would have come in one poll at the end, truncated to 32 bits (about 1.25 GB); the old firmware was not measured.
+
+**Decision:** patches `970` and `971` (see [UPGRADING.md](UPGRADING.md), checklist items 11–12).
 
 ## 4. Interface counters with hardware offloading
 
