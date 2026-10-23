@@ -1,0 +1,144 @@
+From: Koral Ilgun <koral.ilgun@smartrg.com>
+Date: Wed, 21 Oct 2026 15:18:35 -0700
+Subject: [PATCH] netfilter: nf_flow_table: poll hw counters on their
+ own interval
+
+The flowtable gc polls the hardware counters of a flow only when less
+than nine tenths of the flow timeout remain. A packet on the software
+fastpath sets the timeout back to its full value when the timeout
+moved by more than a second. If one direction of a flow is in hardware
+and the other direction stays on the CPU, the CPU direction keeps the
+timeout fresh. A download in the PPE with low-rate feedback upstream
+is such a flow. The counts of the hardware direction then reach
+conntrack only when the flow pauses or goes away, many minutes late
+and in one step. A driver that reports the difference of 32-bit
+hardware counters loses each full 4 GiB of such an interval.
+
+A flowtable with counters now also polls an offloaded flow when a
+tenth of the flow timeout has passed since its last poll, whatever the
+software path refreshes. That poll updates only the counters. A driver
+also reports a lastused for an entry that never bound, and the timeout
+update takes it as is, so such a poll could cut short the timeout of a
+flow that the CPU forwards. The poll on the timeout stays as it was,
+because it keeps the flow alive and serves flowtables without
+counters. The gc takes the time of the poll when it queues the work,
+so a poll that loses the pending bit to an add work runs at the next
+gc pass.
+[Backported to Linux 6.12 for the AX3200 build: the hunk for
+flow_offload_work_stats() is written against this build's patch 971
+instead of the refactoring of the source series. The final read of 971
+before a hardware delete does not move the timeout either. The source
+patch has no Signed-off-by.]
+
+Link: https://github.com/cmonroe/target-cascade/blob/smartrg-master/cascade/patches-6.18/990-08-14-smartrg-netfilter-nf_flow_table-poll-hw-counters-on-their-own-interval.patch
+---
+ include/net/netfilter/nf_flow_table.h |  1 +
+ net/netfilter/nf_flow_table_core.c    |  1 +
+ net/netfilter/nf_flow_table_offload.c | 36 ++++++++++++++++++++++++---
+ 3 files changed, 34 insertions(+), 4 deletions(-)
+
+diff --git a/include/net/netfilter/nf_flow_table.h b/include/net/netfilter/nf_flow_table.h
+index 4d66353..56b5a72 100644
+--- a/include/net/netfilter/nf_flow_table.h
++++ b/include/net/netfilter/nf_flow_table.h
+@@ -183,6 +183,7 @@ struct flow_offload {
+ 	unsigned long				flags;
+ 	u16					type;
+ 	u32					timeout;
++	u32					stats_time;
+ 	struct rcu_head				rcu_head;
+ };
+ 
+diff --git a/net/netfilter/nf_flow_table_core.c b/net/netfilter/nf_flow_table_core.c
+index ea7283e..2c83359 100644
+--- a/net/netfilter/nf_flow_table_core.c
++++ b/net/netfilter/nf_flow_table_core.c
+@@ -283,6 +283,7 @@ int flow_offload_add(struct nf_flowtable *flow_table, struct flow_offload *flow)
+ 	int err;
+ 
+ 	flow->timeout = nf_flowtable_time_stamp + flow_offload_get_timeout(flow);
++	flow->stats_time = nf_flowtable_time_stamp;
+ 
+ 	err = rhashtable_insert_fast(&flow_table->rhashtable,
+ 				     &flow->tuplehash[FLOW_OFFLOAD_DIR_REPLY].node,
+diff --git a/net/netfilter/nf_flow_table_offload.c b/net/netfilter/nf_flow_table_offload.c
+index 289ef14..95c4e2b 100644
+--- a/net/netfilter/nf_flow_table_offload.c
++++ b/net/netfilter/nf_flow_table_offload.c
+@@ -25,6 +25,7 @@ struct flow_offload_work {
+ 	struct nf_flowtable	*flowtable;
+ 	struct flow_offload	*flow;
+ 	struct work_struct	work;
++	bool			extend_timeout;
+ };
+ 
+ #define NF_FLOW_DISSECTOR(__match, __type, __field)	\
+@@ -1007,9 +1008,15 @@ static void flow_offload_work_stats(struct flow_offload_work *offload)
+ 		flow_offload_tuple_stats(offload, FLOW_OFFLOAD_DIR_REPLY,
+ 					 &stats[1]);
+ 
+-	lastused = max_t(u64, stats[0].lastused, stats[1].lastused);
+-	offload->flow->timeout = max_t(u64, offload->flow->timeout,
+-				       lastused + flow_offload_get_timeout(offload->flow));
++	/* The poll for the counters alone also runs on a flow that the CPU
++	 * forwards, whose entry may never have bound and reports a lastused
++	 * that means nothing. Only the poll on the timeout moves the timeout.
++	 */
++	if (offload->extend_timeout) {
++		lastused = max_t(u64, stats[0].lastused, stats[1].lastused);
++		offload->flow->timeout = max_t(u64, offload->flow->timeout,
++					       lastused + flow_offload_get_timeout(offload->flow));
++	}
+ 
+ 	if (offload->flowtable->flags & NF_FLOWTABLE_COUNTER) {
+ 		if (stats[0].pkts)
+@@ -1105,6 +1112,7 @@ nf_flow_offload_work_alloc(struct nf_flowtable *flowtable,
+ 	}
+ 
+ 	offload->cmd = cmd;
++	offload->extend_timeout = false;
+ 	offload->flow = flow;
+ 	offload->flowtable = flowtable;
+ 	INIT_WORK(&offload->work, flow_offload_work_handler);
+@@ -1138,20 +1146,40 @@ void nf_flow_offload_del(struct nf_flowtable *flowtable,
+ 	flow_offload_queue_work(offload);
+ }
+ 
++/* A direction that stays on the CPU refreshes the flow timeout with each
++ * packet, which holds back the poll on the timeout for as long as it
++ * sends. The hardware counts of the other direction then stay out of
++ * conntrack until the flow pauses or goes away.
++ */
++static bool nf_flow_offload_stats_due(const struct nf_flowtable *flowtable,
++				      struct flow_offload *flow)
++{
++	if (!(flowtable->flags & NF_FLOWTABLE_COUNTER) ||
++	    !test_bit(IPS_HW_OFFLOAD_BIT, &flow->ct->status))
++		return false;
++
++	return nf_flowtable_time_stamp - flow->stats_time >=
++	       flow_offload_get_timeout(flow) / 10;
++}
++
+ void nf_flow_offload_stats(struct nf_flowtable *flowtable,
+ 			   struct flow_offload *flow)
+ {
+ 	struct flow_offload_work *offload;
+ 	__s32 delta;
++	bool fresh;
+ 
+ 	delta = nf_flow_timeout_delta(flow->timeout);
+-	if ((delta >= (9 * flow_offload_get_timeout(flow)) / 10))
++	fresh = delta >= (9 * flow_offload_get_timeout(flow)) / 10;
++	if (fresh && !nf_flow_offload_stats_due(flowtable, flow))
+ 		return;
+ 
+ 	offload = nf_flow_offload_work_alloc(flowtable, flow, FLOW_CLS_STATS);
+ 	if (!offload)
+ 		return;
+ 
++	offload->extend_timeout = !fresh;
++	flow->stats_time = nf_flowtable_time_stamp;
+ 	flow_offload_queue_work(offload);
+ }
+ 

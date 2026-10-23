@@ -1,0 +1,116 @@
+From: Chad Monroe <chad@monroe.io>
+Date: Fri, 24 Jul 2026 03:31:48 -0700
+Subject: [PATCH] net: ethernet: mtk_eth_soc: replace stale entries on
+ cookie collision
+
+Flowtable cookies are tuple addresses and get recycled. If a driver
+entry outlives its flow because its destroy was lost, a later flow
+reusing the address collides with it and every FLOW_CLS_REPLACE fails
+with -EEXIST, keeping that flow at CPU speed for its whole life.
+
+Check the tuple on a cookie collision: a matching entry is a real
+duplicate and still returns -EEXIST, a mismatch is a stale leftover
+and gets replaced. The check runs before mtk_wed_flow_add() so a
+duplicate's -EEXIST cannot leak a WED flow reference.
+
+[Backported to Linux 6.12 for the AX3200 build: 6.12 looks the cookie up
+with rhashtable_lookup() in one line, and mtk_flow_entry_match() and
+mtk_flow_entry_match_len() are made non-static for mtk_ppe_offload.c.]
+
+Link: https://github.com/cmonroe/target-cascade/blob/smartrg-master/cascade/patches-6.18/990-08-04-smartrg-net-ethernet-mtk_eth_soc-replace-stale-entries-on-cookie-collision.patch
+Signed-off-by: Chad Monroe <chad@monroe.io>
+---
+ drivers/net/ethernet/mediatek/mtk_ppe.c       |  4 +--
+ drivers/net/ethernet/mediatek/mtk_ppe.h       |  3 ++
+ .../net/ethernet/mediatek/mtk_ppe_offload.c   | 28 +++++++++++++++++--
+ 3 files changed, 31 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/net/ethernet/mediatek/mtk_ppe.c b/drivers/net/ethernet/mediatek/mtk_ppe.c
+index e13080d..59c856b 100644
+--- a/drivers/net/ethernet/mediatek/mtk_ppe.c
++++ b/drivers/net/ethernet/mediatek/mtk_ppe.c
+@@ -493,7 +493,7 @@ int mtk_foe_entry_set_queue(struct mtk_eth *eth, struct mtk_foe_entry *entry,
+ 	return 0;
+ }
+ 
+-static int
++int
+ mtk_flow_entry_match_len(struct mtk_eth *eth, struct mtk_foe_entry *entry)
+ {
+ 	int type = mtk_get_ib1_pkt_type(eth, entry->ib1);
+@@ -504,7 +504,7 @@ mtk_flow_entry_match_len(struct mtk_eth *eth, struct mtk_foe_entry *entry)
+ 		return offsetof(struct mtk_foe_entry, ipv4.ib2);
+ }
+ 
+-static bool
++bool
+ mtk_flow_entry_match(struct mtk_eth *eth, struct mtk_flow_entry *entry,
+ 		     struct mtk_foe_entry *data, int len)
+ {
+diff --git a/drivers/net/ethernet/mediatek/mtk_ppe.h b/drivers/net/ethernet/mediatek/mtk_ppe.h
+index 16a1528..71b6a43 100644
+--- a/drivers/net/ethernet/mediatek/mtk_ppe.h
++++ b/drivers/net/ethernet/mediatek/mtk_ppe.h
+@@ -401,6 +401,9 @@ int mtk_foe_entry_set_queue(struct mtk_eth *eth, struct mtk_foe_entry *entry,
+ 			    unsigned int queue);
+ int mtk_foe_entry_commit(struct mtk_ppe *ppe, struct mtk_flow_entry *entry);
+ void mtk_foe_entry_clear(struct mtk_ppe *ppe, struct mtk_flow_entry *entry);
++int mtk_flow_entry_match_len(struct mtk_eth *eth, struct mtk_foe_entry *entry);
++bool mtk_flow_entry_match(struct mtk_eth *eth, struct mtk_flow_entry *entry,
++			  struct mtk_foe_entry *data, int len);
+ int mtk_ppe_debugfs_init(struct mtk_ppe *ppe, int index);
+ void mtk_foe_entry_get_stats(struct mtk_ppe *ppe, struct mtk_flow_entry *entry,
+ 			     int *idle);
+diff --git a/drivers/net/ethernet/mediatek/mtk_ppe_offload.c b/drivers/net/ethernet/mediatek/mtk_ppe_offload.c
+index e2ebedd..aca5620 100644
+--- a/drivers/net/ethernet/mediatek/mtk_ppe_offload.c
++++ b/drivers/net/ethernet/mediatek/mtk_ppe_offload.c
+@@ -273,6 +273,7 @@ mtk_flow_offload_replace(struct mtk_eth *eth, struct flow_cls_offload *f,
+ 	struct mtk_flow_data data = {};
+ 	struct mtk_foe_entry foe;
+ 	struct mtk_flow_entry *entry;
++	struct mtk_flow_entry *stale;
+ 	int offload_type = 0;
+ 	int wed_index = -1;
+ 	u16 addr_type = 0;
+@@ -280,8 +281,8 @@ mtk_flow_offload_replace(struct mtk_eth *eth, struct flow_cls_offload *f,
+ 	int err = 0;
+ 	int i;
+ 
+-	if (rhashtable_lookup(&eth->flow_table, &f->cookie, mtk_flow_ht_params))
+-		return -EEXIST;
++	stale = rhashtable_lookup_fast(&eth->flow_table, &f->cookie,
++				       mtk_flow_ht_params);
+ 
+ 	if (flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_META)) {
+ 		struct flow_match_meta match;
+@@ -480,6 +481,29 @@ mtk_flow_offload_replace(struct mtk_eth *eth, struct flow_cls_offload *f,
+ 	if (data.pppoe.num == 1)
+ 		mtk_foe_entry_set_pppoe(eth, &foe, data.pppoe.sid);
+ 
++	/* Checked before mtk_wed_flow_add() so a duplicate's -EEXIST
++	 * cannot leak a WED flow reference; the tuple compared by
++	 * mtk_flow_entry_match() is complete at this point.
++	 */
++	if (stale) {
++		if (stale->type == MTK_FLOW_TYPE_L4 &&
++		    mtk_flow_entry_match(eth, stale, &foe,
++					 mtk_flow_entry_match_len(eth, &foe)))
++			return -EEXIST;
++
++		/* Stale leftover of a dead flow whose destroy was lost;
++		 * its cookie address has been recycled for this flow.
++		 */
++		pr_warn_ratelimited("%s: replacing stale flow entry, cookie=%lx\n",
++				    __func__, f->cookie);
++		mtk_foe_entry_clear(eth->ppe[stale->ppe_index], stale);
++		rhashtable_remove_fast(&eth->flow_table, &stale->node,
++				       mtk_flow_ht_params);
++		if (stale->wed_index >= 0)
++			mtk_wed_flow_remove(stale->wed_index);
++		kfree(stale);
++	}
++
+ 	err = mtk_flow_set_output_device(eth, &foe, odev, data.eth.h_dest,
+ 					 &wed_index);
+ 	if (err)
