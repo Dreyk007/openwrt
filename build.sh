@@ -120,6 +120,25 @@ fi
 # 2. Update and install package feeds
 info "Updating and installing OpenWrt package feeds..."
 ./scripts/feeds update -a
+
+# Fixes for feed packages: feeds-patches/<feed>/*.patch, applied in name order. A pinned feed is
+# not updated once cloned, so first restore the files the patches touch. A patch that does not
+# apply, e.g. because the feed already has it, stops the build.
+for feed_patches in feeds-patches/*/; do
+    [ -d "$feed_patches" ] || continue
+    feed_dir="feeds/$(basename "$feed_patches")"
+    for patch in "$feed_patches"*.patch; do
+        git -C "$feed_dir" apply --numstat "$PWD/$patch" | cut -f3 | xargs -r git -C "$feed_dir" checkout -q --
+    done
+    for patch in "$feed_patches"*.patch; do
+        if ! git -C "$feed_dir" apply "$PWD/$patch"; then
+            error "Feed patch $patch does not apply to $feed_dir."
+            exit 1
+        fi
+        info "Applied feed patch $patch"
+    done
+done
+
 ./scripts/feeds install -a
 success "Feeds updated and installed."
 
