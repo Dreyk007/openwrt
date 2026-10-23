@@ -52,7 +52,7 @@ The goal of the build is **line-rate 1 Gbps wired and Wi-Fi 6 throughput, low la
   * **5 GHz:** `HE80`, non-DFS channel `36` (no 1–10 minute DFS/CAC radar drop-outs), `noscan='1'`, WPA2/WPA3 mixed mode (`sae-mixed`), `wnm_sleep_mode='1'`, `wnm_sleep_mode_no_keys='1'`, `dtim_period='3'`, `ocv='0'` (SAE client compatibility).
   * **SSIDs:** `<board>-<band>-<radio><last 4 hex digits of the MAC>`, e.g. `redmi-router-ax6s-2g-0a1b2` and `redmi-router-ax6s-5g-1a1b2`; password **`12345678`**.
 * Settings are applied only if the radio has no Wi-Fi key yet, so they never overwrite a restored configuration.
-* **Full `wpad-mbedtls`** instead of the `basic` variant: **WPA3 (SAE)** and support for **802.11k/v/r**. The roaming options are not enabled by default: with a single access point and a separate SSID per band there is nothing to roam to. For a multi-AP setup enable them in the wireless settings and install `usteer` (`apk add usteer luci-app-usteer`).
+* **Full `wpad-mbedtls`** instead of `wpad-basic-mbedtls`, OpenWrt's default for this router. The basic variant already supports WPA3 (SAE), 802.11r and 802.11k; the full one adds 802.11v (WNM), which the WNM-Sleep Mode of the 5 GHz defaults above needs, as well as WPS, WPA2/WPA3-Enterprise (802.1X, built-in RADIUS server), 802.11s mesh and Wi-Fi Easy Connect (DPP). Fast roaming (802.11k/v/r) stays off, as in stock OpenWrt: it only matters when several access points share one SSID. For such a network enable it in the wireless settings and install `usteer` (`apk add usteer luci-app-usteer`).
 * **Wi-Fi driver fixes from mt76 master** (`package/kernel/mt76/patches/0300…0317`, 18 patches on top of the mt76 of OpenWrt 25.12): kernel crashes around client connects and disconnects and around the recovery of the radio firmware, TX aggregation for voice-priority traffic on 5 GHz, correct HE DCM / VHT STBC client capabilities. On 2.4 GHz the adaptive sensitivity (SCS) of the MT7622 works again: a driver bug kept it at its default since 2022. On the busy 2.4 GHz channel of the test setup it halved the time the radio considered the channel busy (31 → 15 %) and reduced ping loss to the clients. The threshold never goes above the weakest connected client; details in [RESEARCH.md](RESEARCH.md#10-wi-fi-driver-fixes-from-mt76-master).
 
 ### 5. Network Stack and Memory (256 MB RAM)
@@ -230,9 +230,9 @@ Subsequent builds:
 
 ### Build and Release with GitHub Actions
 The workflow [`.github/workflows/build-ax3200.yml`](.github/workflows/build-ax3200.yml) runs `build.sh --install-deps` on a GitHub-hosted runner (Ubuntu 26.04 by default) and publishes the files of `bin/targets/mediatek/mt7622/` — the same images, `sha256sums` and buildinfo files as a local build — as a GitHub release. It only runs on demand: *Actions → Build AX3200 firmware → Run workflow*. Options:
-* **release tag** — empty for the next `v<OpenWrt version>-ax3200-r<N>`;
-* **pre-release** — publish the release as a pre-release;
-* **runner image** — `ubuntu-26.04`, or `ubuntu-24.04` as a fallback.
+* **Release tag** — empty for the next `v<OpenWrt version>-ax3200-r<N>`;
+* **Publish as a pre-release**;
+* **Runner image** — `ubuntu-26.04`, or `ubuntu-24.04` as a fallback.
 
 A full build takes a few hours on the 4-core runner; the source downloads (`dl/`) are cached between runs. If the build fails, its log is attached to the run as the `build-log` artifact.
 
