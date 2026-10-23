@@ -156,14 +156,25 @@ success "Configuration applied successfully."
 
 # 4. Synchronize kernel vermagic with official OpenWrt repository.
 # Without a valid vermagic list the firmware silently gets its own vermagic and
-# official kmod-* packages can no longer be installed, so treat failure as fatal.
+# official kmod-* packages can no longer be installed, so a missing list is fatal.
+# vermagic_update.sh tries the official mirrors too, and exits with 2 when no
+# server answered but the committed list already holds the current kernel.
 info "Synchronizing kernel vermagic with official OpenWrt repository (mediatek mt7622)..."
-if ! ./vermagic_update.sh mediatek mt7622; then
-    error "Cannot synchronize kernel vermagic with the official repository."
-    error "Check network access to downloads.openwrt.org and re-run the build."
-    exit 1
-fi
-success "Kernel vermagic synchronized with official repository."
+vermagic_rc=0
+./vermagic_update.sh mediatek mt7622 || vermagic_rc=$?
+case "$vermagic_rc" in
+    0)
+        success "Kernel vermagic synchronized with official repository."
+        ;;
+    2)
+        warn "The official repository and its mirrors did not answer; using the committed vermagic list of this release."
+        ;;
+    *)
+        error "Cannot synchronize kernel vermagic with the official repository."
+        error "Check network access to downloads.openwrt.org and re-run the build."
+        exit 1
+        ;;
+esac
 
 # 5. Pre-download source packages
 info "Pre-downloading package sources using $JOBS parallel jobs..."

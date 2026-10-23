@@ -142,7 +142,7 @@ The release commit pins new feed revisions in `feeds.conf.default`:
 
 ### 2.4. Update the official vermagic
 
-Every release has a new kernel vermagic. The official kmods of the new release must already be published on `downloads.openwrt.org`, otherwise the script fails (on purpose) and keeps the old list:
+Every release has a new kernel vermagic. The official kmods of the new release must already be published on `downloads.openwrt.org` (the script falls back to the official mirrors in `VERMAGIC_MIRRORS` when it does not answer), otherwise the script fails (on purpose) and keeps the old list:
 
 ```bash
 ./vermagic_update.sh mediatek mt7622     # creates vermagic-mediatek-mt7622-$NEW.list, removes the old list
@@ -168,7 +168,7 @@ No output means nothing changed. Otherwise review the difference (renamed/remove
 ./build.sh
 ```
 
-The build stops if the vermagic synchronization fails. With `CONFIG_ALL_KMODS=y` all ~1100 kmods are built, so the first build after a release update takes longer. If an optional (`=m`) kmod fails to build, exclude it in the seed (as done for `kmod-rtl8812au-ct`) instead of ignoring the error. If a kernel patch no longer applies after a kernel version bump (e.g. `970-...mtk_ppe-fix-flow-accounting...` or `971-netfilter-flowtable-...`), refresh it with `make target/linux/refresh` and review the result. If OpenWrt itself backports the `mt7530` `.get_stats64` commits, the `799-0*` patches no longer apply: drop ours.
+The build stops if there is no vermagic list for the release: when neither `downloads.openwrt.org` nor its mirrors answer, `build.sh` warns and uses the committed list of the release, since a released version keeps its vermagic. With `CONFIG_ALL_KMODS=y` all ~1100 kmods are built, so the first build after a release update takes longer. If an optional (`=m`) kmod fails to build, exclude it in the seed (as done for `kmod-rtl8812au-ct`) instead of ignoring the error. If a kernel patch no longer applies after a kernel version bump (e.g. `970-...mtk_ppe-fix-flow-accounting...` or `971-netfilter-flowtable-...`), refresh it with `make target/linux/refresh` and review the result. If OpenWrt itself backports the `mt7530` `.get_stats64` commits, the `799-0*` patches no longer apply: drop ours.
 
 ### 2.7. Check kernel configuration parity with the official build
 

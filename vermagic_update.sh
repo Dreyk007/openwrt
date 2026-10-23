@@ -8,7 +8,10 @@
 # Usage: ./vermagic_update.sh [BOARD] [SUBTARGET] [OUTDIR]
 #
 # The existing list is replaced only after the new one has been downloaded and
-# validated. On any error the script exits non-zero and leaves it untouched.
+# validated. When downloads.openwrt.org does not answer, official mirrors are
+# tried. When no server answers but the existing list already holds the current
+# kernel, the list is kept and the script exits with 2: a released version keeps
+# its vermagic. On any other error it exits with 1 and leaves the list untouched.
 
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 
@@ -24,6 +27,10 @@ log_msg() {
 
 log_err() {
 	printf "\033[31mERROR: %s\033[m\n" "$1" >&2
+}
+
+log_warn() {
+	printf "\033[33mWARNING: %s\033[m\n" "$1" >&2
 }
 
 die() {
@@ -66,19 +73,46 @@ else
 	log_msg "WARNING: Cannot determine local kernel version, skipping kernel match check"
 fi
 
-kmods_url=$VERSION_REPO/targets/$BOARD/$SUBTARGET/kmods/
+# Official mirrors (https://openwrt.org/downloads#mirrors), tried when downloads.openwrt.org
+# does not answer. VERMAGIC_MIRRORS="<base URL> ..." replaces them, an empty value disables them.
+VERMAGIC_MIRRORS=${VERMAGIC_MIRRORS-https://ftp.halifax.rwth-aachen.de/openwrt https://mirrors.tuna.tsinghua.edu.cn/openwrt}
+
+kmods_path=targets/$BOARD/$SUBTARGET/kmods/
+kmods_urls=$VERSION_REPO/$kmods_path
+case "$VERSION_REPO" in
+https://downloads.openwrt.org/*)
+	for mirror in $VERMAGIC_MIRRORS; do
+		kmods_urls="$kmods_urls $mirror/${VERSION_REPO#https://downloads.openwrt.org/}/$kmods_path"
+	done
+	;;
+esac
 vermagic_file=$OUTDIR/vermagic-$BOARD-$SUBTARGET-$VERSION_NUMBER.list
 
 tmp_file=$( mktemp "$OUTDIR/.vermagic.XXXXXX" ) || die "Cannot create temporary file in '$OUTDIR'"
 trap 'rm -f "$tmp_file"' EXIT
 
-curl -fsSL --retry 3 --connect-timeout 15 --max-time 60 -o "$tmp_file" "$kmods_url" ||
-	die "Cannot download WEB-page from '$kmods_url'"
+vermagic=
+for kmods_url in $kmods_urls; do
+	if ! curl -fsSL --retry 3 --connect-timeout 15 --max-time 60 -o "$tmp_file" "$kmods_url"; then
+		log_warn "Cannot download WEB-page from '$kmods_url'"
+		continue
+	fi
+	# Directory entries look like: <a href="6.12.112-1-685dcedeed3538a4cc670fc3fd59eac1/">
+	vermagic=$( grep -o -E 'href="[0-9]+\.[0-9]+\.[0-9]+-[0-9]+-[0-9a-f]{32}/"' "$tmp_file" |
+		sed -E 's/^href="//; s/\/"$//' | sort -u )
+	[ -n "$vermagic" ] && break
+	log_warn "Cannot find kmods on '$kmods_url'"
+done
 
-# Directory entries look like: <a href="6.12.112-1-685dcedeed3538a4cc670fc3fd59eac1/">
-vermagic=$( grep -o -E 'href="[0-9]+\.[0-9]+\.[0-9]+-[0-9]+-[0-9a-f]{32}/"' "$tmp_file" |
-	sed -E 's/^href="//; s/\/"$//' | sort -u )
-[ -z "$vermagic" ] && die "Cannot find kmods on '$kmods_url'"
+if [ -z "$vermagic" ]; then
+	if [ -n "$KERNEL_VER" ] && grep -q "^$KERNEL_VER-" "$vermagic_file" 2>/dev/null; then
+		log_warn "No server answered; keeping '$( basename "$vermagic_file" )', which has kernel $KERNEL_VER"
+		log_msg "$( sed 's/^/vermagic: /' "$vermagic_file" )"
+		exit 2
+	fi
+	die "Cannot get the official kmods list for $BOARD/$SUBTARGET $VERSION_NUMBER from any server"
+fi
+log_msg "kmods list: $kmods_url"
 
 if [ -n "$KERNEL_VER" ] && ! printf "%s\n" "$vermagic" | grep -q "^$KERNEL_VER-"; then
 	die "No official kmods for kernel $KERNEL_VER on '$kmods_url' (found: $( echo $vermagic ))"
