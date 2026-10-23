@@ -1,12 +1,16 @@
 ![OpenWrt logo](include/logo.png)
 
-[English](README.md) | **Русский**
+### [English](README.md) · Русский
 
 # OpenWrt 25.12 (`xq-25.12`) — оптимизированная сборка для Xiaomi AX3200 / Redmi AX6S
 
 [![Скачать последний релиз](https://img.shields.io/github/v/release/Dreyk007/openwrt?style=for-the-badge&label=%D0%A1%D0%BA%D0%B0%D1%87%D0%B0%D1%82%D1%8C&color=2ea44f)](https://github.com/Dreyk007/openwrt/releases/latest) [![Установка](https://img.shields.io/badge/%D0%A3%D1%81%D1%82%D0%B0%D0%BD%D0%BE%D0%B2%D0%BA%D0%B0-0969da?style=for-the-badge)](#установка)
 
-**Какой файл:** `…-factory.bin` — первая установка со стоковой прошивки, `…-squashfs-sysupgrade.itb` — обновление с OpenWrt 24.10 / 25.12 ([подробнее](#установка)).
+**Какой файл скачать:**
+* **первая установка** со стоковой прошивки — файл, имя которого заканчивается на `factory.bin`;
+* **обновление** с OpenWrt 24.10 / 25.12 — файл, имя которого заканчивается на `squashfs-sysupgrade.itb`.
+
+Остальные случаи (OpenWrt 23.05 и старше, возврат на стоковую прошивку) описаны в разделе [«Установка»](#установка).
 
 Этот репозиторий (ветка **`xq-25.12`**) — форк стабильного релиза **OpenWrt 25.12.6** (`Linux 6.12.112`), адаптированный для **Xiaomi Router AX3200 (RB01) / Redmi Router AX6S (RB03)** на платформе **MediaTek MT7622B + MT7531BE + MT7915E** (включает доработки MediaTek из дерева `remittor`).
 
@@ -56,7 +60,7 @@
 * **Скачать прямо на роутере**, если у него есть доступ в интернет: ссылки `https://github.com/Dreyk007/openwrt/releases/latest/download/<файл>` всегда ведут на последний релиз, а `sha256sums` оттуда же проверяет скачанный файл. Команды приведены в каждом разделе.
 * **Скопировать с компьютера:** скачайте файл из [последнего релиза](https://github.com/Dreyk007/openwrt/releases/latest) и скопируйте его командой `scp`; она есть в Linux, macOS и Windows 10/11 (в Windows можно также использовать WinSCP с протоколом SCP). Ключ `-O` нужен, потому что в OpenWrt нет SFTP-сервера.
 
-Если адрес роутера не `192.168.1.1`, подставьте свой.
+Команды на роутере выполняются по SSH: `ssh root@192.168.1.1` (есть в Linux, macOS и Windows 10/11) или [PuTTY](https://www.chiark.greenend.org.uk/~sgtatham/putty/) в Windows — хост `192.168.1.1`, пользователь `root`. Пароль — тот, что задан для root в LuCI; сразу после прошивки его нет. Если адрес роутера не `192.168.1.1`, подставьте свой.
 
 ### А. Со стоковой прошивки через XMiR-Patcher (рекомендуется)
 [XMiR-Patcher](https://github.com/openwrt-xiaomi/xmir-patcher) получает доступ по SSH через уязвимость стокового веб-интерфейса и сам прошивает образ. Работает в Windows, Linux и macOS.

@@ -1,12 +1,16 @@
 ![OpenWrt logo](include/logo.png)
 
-**English** | [Русский](README.ru.md)
+### English · [Русский](README.ru.md)
 
 # OpenWrt 25.12 (`xq-25.12`) — Optimized Custom Build for Xiaomi AX3200 / Redmi AX6S
 
 [![Download the latest release](https://img.shields.io/github/v/release/Dreyk007/openwrt?style=for-the-badge&label=Download&color=2ea44f)](https://github.com/Dreyk007/openwrt/releases/latest) [![Installation](https://img.shields.io/badge/Installation-0969da?style=for-the-badge)](#installation)
 
-**Which file:** `…-factory.bin` for the first installation from the stock firmware, `…-squashfs-sysupgrade.itb` to upgrade from OpenWrt 24.10 / 25.12 ([details](#installation)).
+**Which file to download:**
+* **first installation** from the stock firmware: the file ending in `factory.bin`;
+* **upgrade** from OpenWrt 24.10 / 25.12: the file ending in `squashfs-sysupgrade.itb`.
+
+Other cases (OpenWrt 23.05 or older, back to the stock firmware) are described in [Installation](#installation).
 
 This repository (branch **`xq-25.12`**) is a fork of the stable **OpenWrt 25.12.6** release (`Linux 6.12.112`) tailored for the **Xiaomi Router AX3200 (RB01) / Redmi Router AX6S (RB03)** built on the **MediaTek MT7622B + MT7531BE + MT7915E** platform (it also carries the MediaTek changes from the `remittor` tree).
 
@@ -56,7 +60,7 @@ Download the images from the [latest release](https://github.com/Dreyk007/openwr
 * **Download it on the router**, if the router has internet access: the links `https://github.com/Dreyk007/openwrt/releases/latest/download/<file>` always point to the latest release, and `sha256sums` from the same place checks the download. The commands are in each section.
 * **Copy it from your computer:** download the file from the [latest release](https://github.com/Dreyk007/openwrt/releases/latest) and copy it with `scp`, which is built into Linux, macOS and Windows 10/11 (on Windows you can also use WinSCP with the SCP protocol). The `-O` option is needed because OpenWrt has no SFTP server.
 
-If your router is not at `192.168.1.1`, use its address instead.
+Commands on the router are run over SSH: `ssh root@192.168.1.1` (built into Linux, macOS and Windows 10/11), or [PuTTY](https://www.chiark.greenend.org.uk/~sgtatham/putty/) on Windows with host `192.168.1.1` and user `root`. The password is the root password set in LuCI; right after flashing there is none. If your router is not at `192.168.1.1`, use its address instead.
 
 ### A. From the Stock Firmware with XMiR-Patcher (recommended)
 [XMiR-Patcher](https://github.com/openwrt-xiaomi/xmir-patcher) uses a vulnerability in the stock web interface to get SSH access and flashes the firmware for you. It works on Windows, Linux and macOS.
