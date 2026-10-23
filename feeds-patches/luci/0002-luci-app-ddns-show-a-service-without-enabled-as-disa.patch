@@ -1,0 +1,49 @@
+From dd60daaa08fcd81afea0b2fd8123de1bcc4c0640 Mon Sep 17 00:00:00 2001
+From: Valentin Berezhnoy <dreyksmail@gmail.com>
+Date: Fri, 23 Oct 2026 16:35:33 +0300
+Subject: [PATCH 2/2] luci-app-ddns: show a service without "enabled" as
+ disabled
+
+ddns-scripts starts a service only if its "enabled" option is set
+(config_get_bool ... enabled '0'), and the "Enabled" checkbox on the
+DDNS page is unchecked for a service without it, but the status
+reported such a service as "Stopped" instead of "Disabled". The two
+example services that ddns-scripts ships have no "enabled" option.
+
+Read "enabled" as a boolean, the same way as ddns-scripts does.
+
+Assisted-by: LLM
+Signed-off-by: Valentin Berezhnoy <dreyksmail@gmail.com>
+Link: https://github.com/openwrt/luci/pull/9154
+---
+ .../luci-app-ddns/root/usr/share/rpcd/ucode/ddns.uc         | 6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/applications/luci-app-ddns/root/usr/share/rpcd/ucode/ddns.uc b/applications/luci-app-ddns/root/usr/share/rpcd/ucode/ddns.uc
+index d8efbd1..f0ea09e 100644
+--- a/applications/luci-app-ddns/root/usr/share/rpcd/ucode/ddns.uc
++++ b/applications/luci-app-ddns/root/usr/share/rpcd/ucode/ddns.uc
+@@ -115,6 +115,8 @@ const methods = {
+ 				if (section == '.anonymous')
+ 					return;
+ 
++				// ddns-scripts runs a service only if it is enabled; it is disabled by default
++				const enabled = s['enabled'] in [ '1', 'on', 'true', 'yes', 'enabled' ];
+ 				const ipFile = `${rundir}/${section}.ip`;
+ 
+ 				if (stat(ipFile)?.type == 'file') {
+@@ -185,9 +187,9 @@ const methods = {
+ 					nextUpdate = 'Verify';
+ 				} else if (forcedUpdateInterval === 0) {
+ 					nextUpdate = 'Run once';
+-				} else if (pid == 0 && s['enabled'] == '0') {
++				} else if (pid == 0 && !enabled) {
+ 					nextUpdate = 'Disabled';
+-				} else if (pid == 0 && s['enabled'] != '0') {
++				} else if (pid == 0) {
+ 					nextUpdate = 'Stopped';
+ 				}
+ 
+-- 
+2.53.0
+

@@ -1,0 +1,66 @@
+From 4f48dd391d8d6b005390208f39617a3a8a67d720 Mon Sep 17 00:00:00 2001
+From: Valentin Berezhnoy <dreyksmail@gmail.com>
+Date: Fri, 23 Oct 2026 16:33:19 +0300
+Subject: [PATCH 1/2] luci-app-ddns: look up the registered IP in the
+ background
+
+get_services_status looks up the registered IP of every service that
+has no cached IP in the run directory yet, and waits for the lookup.
+LuCI fetches the status in one request with the rest of a page, so the
+DDNS include holds up the whole Overview until the DNS answers or the
+lookup times out.
+
+ddns-scripts ships two example services for yourhost.example.com.
+Without a working DNS, e.g. after a factory reset before the WAN is
+connected, each lookup times out after 10 s, and the Overview stays
+empty for 20 s after logging in. The cached result lives in /var/run,
+so this repeats after every boot, for any service, until the DNS works.
+
+The call does not use the result of the lookup anyway: the helper
+writes it to the IP file in the run directory, and a later call reads
+it from there. So start the lookup in the background and return at
+once. Create the IP file empty first, so that the calls made while the
+lookup runs do not start it again; the helper overwrites the file with
+the result, or empties it if the lookup fails, as before.
+
+Assisted-by: LLM
+Signed-off-by: Valentin Berezhnoy <dreyksmail@gmail.com>
+Link: https://github.com/openwrt/luci/pull/9154
+---
+ .../luci-app-ddns/root/usr/share/rpcd/ucode/ddns.uc | 13 ++++++++++---
+ 1 file changed, 10 insertions(+), 3 deletions(-)
+
+diff --git a/applications/luci-app-ddns/root/usr/share/rpcd/ucode/ddns.uc b/applications/luci-app-ddns/root/usr/share/rpcd/ucode/ddns.uc
+index 32d1da7..d8efbd1 100644
+--- a/applications/luci-app-ddns/root/usr/share/rpcd/ucode/ddns.uc
++++ b/applications/luci-app-ddns/root/usr/share/rpcd/ucode/ddns.uc
+@@ -115,8 +115,10 @@ const methods = {
+ 				if (section == '.anonymous')
+ 					return;
+ 
+-				if (stat(`${rundir}/${section}.ip`)?.type == 'file') {
+-					ip = readfile(`${rundir}/${section}.ip`);
++				const ipFile = `${rundir}/${section}.ip`;
++
++				if (stat(ipFile)?.type == 'file') {
++					ip = readfile(ipFile);
+ 				} else {
+ 					const dnsServer = s['dns_server'] || '';
+ 					const forceIpVersion = int(s['force_ipversion'] || 0);
+@@ -136,7 +138,12 @@ const methods = {
+ 					if (length(dnsServer) > 0) push(command, '-d', shellquote(dnsServer));
+ 					push(command, '-- get_registered_ip');
+ 
+-					const result = system(`${join(' ', command)}`);
++					/* LuCI fetches the status in one request with the rest of a page, such
++					as the Overview, and without a working DNS the lookup takes 10 s or more
++					to time out. Run it in the background: the helper writes the result to
++					the IP file, and a later call reads it from there. The empty file keeps
++					later calls from starting the lookup again. */
++					system(`mkdir -p ${shellquote(rundir)} && : > ${shellquote(ipFile)} && { ${join(' ', command)} >/dev/null 2>&1 & }`);
+ 				}
+ 
+ 				lastUpdate = int(readfile(`${rundir}/${section}.update`) || 0);
+-- 
+2.53.0
+
