@@ -168,6 +168,14 @@ Pings every 20 ms to 1.1.1.1 and 8.8.8.8 from the wired PC, idle and with the IS
 
 8.8.8.8 behaves the same; packet loss stays at or below 0.1 %. The ISP link does not bloat under load, so SQM would cost the hardware offloading (and cap the throughput at what the CPU can shape) without improving the latency. **Decision:** keep hardware flow offloading; no SQM or QoS on this link. On a link that does bloat, follow [SQM or hardware offloading?](README.md#sqm-or-hardware-offloading).
 
+**What SQM costs on this router** (2026-10-24; the ISP link now gives ~600/365 Mbit/s). The wired PC, or the laptop on 5 GHz, saturates the link with 4 parallel downloads (dl.google.com) or uploads (speed.cloudflare.com) for 20 s while pinging 1.1.1.1 at 20/s; CAKE (`piece_of_cake.qos`) on `wan`, bridger running, 2 rounds per configuration:
+* Without SQM (hardware offloading): 595–608 / 357–371 Mbit/s at 4–6 % CPU, p99 13–14 ms downloading and 21–22 ms uploading (idle p99 13 ms).
+* CAKE at 450/340 Mbit/s, more than the CPU can shape: 392–427 / 283–321 Mbit/s with one core at 96–98 % (packet steering mode 1). The latency is not better than without SQM: p99 13.6–21 ms downloading and 30–42 ms uploading with steering mode 1, 36–45 / 13–17 ms with mode 2.
+* CAKE at 250/150 Mbit/s: every configuration reaches the set rates with p99 10–17 ms. Downloading takes 46–50 % CPU with steering mode 1 and 51–62 % with mode 2, so mode 1 needs less CPU for the same result. A 5 GHz client downloading at 232 Mbit/s: with mode 1 one core is at 96–98 % (without WED the CPU also sends to the radio), p99 19–25 ms; mode 2 spreads the load to 67–69 % but has a p99 of up to 42 ms.
+* Software flow offloading works with SQM: the CAKE counters of `ifb4wan` and `wan` grow by ~200,000 packets per 10 s at 250 Mbit/s while no PPE entry is bound, with the same throughput and latency as without offloading.
+
+So SQM on this router shapes up to ~400 Mbit/s for wired clients and ~230–250 Mbit/s for Wi-Fi clients. The best SQM setup is software flow offloading, packet steering mode 1 and bridger left on: it moves wired → Wi-Fi traffic inside the LAN, which SQM does not shape anyway.
+
 ## 10. Wi-Fi driver fixes from mt76 master
 
 OpenWrt 25.12 builds mt76 from Git HEAD 2026-03-19 plus the fixes that reached Linux 6.18.55; mac80211 comes from backports 6.18.55. OpenWrt main has mt76 2026-10-08 and mac80211 7.2. The firmware is the same in both (MT7915 20240429, MT7622 WMAC 20220630), so rate control and the RF side do not change.

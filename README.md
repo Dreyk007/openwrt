@@ -265,14 +265,14 @@ reboot
 
 | | HFO + WED (default) | SQM (CAKE) |
 |---|---|---|
-| Max routed throughput | ~1 Gbps, almost no CPU load | CPU-bound; on MT7622 users report roughly 500–600 Mbps with CAKE |
+| Max routed throughput | ~1 Gbps, almost no CPU load | CPU-bound: measured ~400 Mbit/s for wired clients and ~230–250 Mbit/s for 5 GHz clients, with one core at its limit ([RESEARCH.md](RESEARCH.md#9-wan-bufferbloat-and-the-need-for-sqm)) |
 | Latency under load | depends on the ISP / modem buffers | low and stable |
 | Best for | fast links (≳ 500 Mbps), links without bufferbloat | slower or asymmetric links: DSL, LTE/5G, cable, PPPoE below ~300–500 Mbps |
 
-**How to choose:** run a bufferbloat test (e.g. Waveform "Bufferbloat Test") over a wired connection with the default settings. If latency under load stays low (grade A/B), keep HFO. If it grows by tens or hundreds of milliseconds and your plan is below ~500 Mbps, switch to SQM.
+**How to choose:** run a bufferbloat test (e.g. Waveform "Bufferbloat Test") over a wired connection with the default settings. If latency under load stays low (grade A/B), keep HFO. If it grows by tens or hundreds of milliseconds and your plan is below ~300 Mbit/s, switch to SQM.
 
 **Switch to SQM:**
-1. LuCI → *Network → Firewall → General Settings* → *Routing/NAT Offloading* → *Flow offloading type*: select **None** (or **Software flow offloading**; it is generally reported to coexist with SQM — check that the CAKE counters of `ifb4…` and the WAN device in `tc -s qdisc` grow under load). *Save & Apply*.
+1. LuCI → *Network → Firewall → General Settings* → *Routing/NAT Offloading* → *Flow offloading type*: select **Software flow offloading**: on this router it works with SQM (CAKE still sees every packet) and gives the same speed and latency as **None**. *Save & Apply*. Keep `bridger` running: it only handles wired → Wi-Fi traffic inside the LAN, which SQM does not shape.
 2. LuCI → *Network → SQM QoS*: enable it on the WAN interface (`wan`, or `pppoe-wan` for PPPoE), qdisc `cake`, script `piece_of_cake.qos`, and set download/upload to ~85–95 % of the speeds measured without SQM. *Save & Apply*, then repeat the test.
 
 **Back to HFO:** disable SQM and set *Flow offloading type* to *Hardware flow offloading* again.
