@@ -1,0 +1,49 @@
+#!/bin/sh
+# Operating mode of the router from the command line, the same as LuCI -> System -> Operating mode.
+
+usage() {
+	cat <<EOF
+Usage: tuning status
+       tuning profiles
+       tuning set balanced|throughput|lowlatency
+       tuning set sqm <download kbit/s> <upload kbit/s>
+
+Modes:
+  balanced    hardware NAT and WED, the default for most homes
+  throughput  also bridger: bulk wired -> 5 GHz transfers to one client at low CPU load
+  lowlatency  no WED: all Wi-Fi traffic through mac80211's airtime scheduling (VR, Wi-Fi gaming)
+  sqm         CAKE on the WAN for slow links with bufferbloat
+
+Changing WED (lowlatency, sqm) needs a reboot; the result says so.
+EOF
+	exit 1
+}
+
+case "$1" in
+status|"")
+	ubus call luci.tuning status
+	;;
+profiles)
+	ubus call luci.tuning profiles
+	;;
+set)
+	case "$2" in
+	balanced|throughput|lowlatency)
+		ubus call luci.tuning apply "{\"profile\":\"$2\"}"
+		;;
+	sqm)
+		[ -n "$3" ] && [ -n "$4" ] || usage
+		case "$3$4" in
+		*[!0-9]*) usage ;;
+		esac
+		ubus call luci.tuning apply "{\"profile\":\"sqm\",\"sqm_download\":$3,\"sqm_upload\":$4}"
+		;;
+	*)
+		usage
+		;;
+	esac
+	;;
+*)
+	usage
+	;;
+esac

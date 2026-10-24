@@ -1,0 +1,13 @@
+{
+	"admin/system/tuning": {
+		"title": "Operating mode",
+		"order": 47,
+		"action": {
+			"type": "view",
+			"path": "system/tuning"
+		},
+		"depends": {
+			"acl": [ "luci-app-tuning" ]
+		}
+	}
+}

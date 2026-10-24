@@ -1,0 +1,281 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: ru\n"
+"Plural-Forms: nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);\n"
+
+msgid "%d MHz"
+msgstr "%d МГц"
+
+msgid "%s / %s Mbit/s"
+msgstr "%s / %s Мбит/с"
+
+msgid "5 GHz Wi-Fi devices that receive data from wired devices get higher latency: about 3.5 ms instead of 1.7 ms, even when no other device is busy. Wired devices and internet traffic are not affected."
+msgstr "У устройств Wi-Fi 5 ГГц, которые получают данные от проводных устройств, задержка выше: около 3,5 мс вместо 1,7 мс, даже когда остальные устройства не нагружают сеть. Проводных устройств и интернет-трафика это не касается."
+
+msgid "A reboot is needed to apply the WED setting."
+msgstr "Для применения настройки WED нужна перезагрузка."
+
+msgid "A typical home: phones, a TV, laptops, gaming, an internet plan up to 1 Gbit/s."
+msgstr "Обычный дом: телефоны, ТВ, ноутбуки, игры, тариф до 1 Гбит/с."
+
+msgid "A wired gaming PC gains nothing from this mode."
+msgstr "Проводному игровому ПК этот режим ничего не даёт."
+
+msgid "Active mode"
+msgstr "Действующий режим"
+
+msgid "Advanced: individual settings"
+msgstr "Расширенные: отдельные настройки"
+
+msgid "All internet traffic is handled by the CPU (hardware NAT and WED are off): the speed is limited to about 400 Mbit/s for wired and 230–250 Mbit/s for Wi-Fi devices."
+msgstr "Весь интернет-трафик обрабатывает CPU (аппаратный NAT и WED выключены): скорость ограничена примерно 400 Мбит/с для проводных устройств и 230–250 Мбит/с для устройств Wi-Fi."
+
+msgid "All traffic to Wi-Fi devices goes through the Wi-Fi airtime scheduler, which shares the airtime fairly and keeps the queues short: slightly lower latency peaks while other devices download (about 27 ms instead of 30 ms in the Balanced mode)."
+msgstr "Весь трафик к устройствам Wi-Fi проходит через планировщик эфира Wi-Fi, который делит эфир справедливо и держит очереди короткими: чуть ниже пики задержки, пока другие устройства что-то качают (около 27 мс вместо 30 мс в режиме «Сбалансированный»)."
+
+msgid "Apply"
+msgstr "Применить"
+
+msgid "Apply and reboot"
+msgstr "Применить и перезагрузить"
+
+msgid "Apply the mode"
+msgstr "Применение режима"
+
+msgid "Applying reboots the router."
+msgstr "Применение перезагружает роутер."
+
+msgid "Balanced"
+msgstr "Сбалансированный"
+
+msgid "CPU frequency"
+msgstr "Частота CPU"
+
+msgid "CPU frequency governor"
+msgstr "Регулятор частоты CPU"
+
+msgid "CPU load"
+msgstr "Загрузка CPU"
+
+msgid "Cancel"
+msgstr "Отмена"
+
+msgid "Changes"
+msgstr "Изменения"
+
+msgid "Changing a setting here switches to the Custom mode."
+msgstr "Изменение любой настройки здесь переключает на режим «Ручной»."
+
+msgid "Cons"
+msgstr "Минусы"
+
+msgid "Current state"
+msgstr "Текущее состояние"
+
+msgid "Custom"
+msgstr "Ручной"
+
+msgid "Data from wired devices to 5 GHz Wi-Fi devices is forwarded by the hardware (bridger) instead of the CPU: the same speed of about 1.3 Gbit/s at ~8% CPU load instead of ~70%."
+msgstr "Данные от проводных устройств к устройствам Wi-Fi 5 ГГц пересылает оборудование (bridger), а не CPU: та же скорость около 1,3 Гбит/с при загрузке CPU ~8% вместо ~70%."
+
+msgid "Download, Mbit/s"
+msgstr "Скачивание, Мбит/с"
+
+msgid "Enter the download and upload rates for SQM."
+msgstr "Укажите скорости скачивания и отдачи для SQM."
+
+msgid "Error: %s"
+msgstr "Ошибка: %s"
+
+msgid "Even in this mode a large download to another Wi-Fi device raises the latency of the others."
+msgstr "Даже в этом режиме большая загрузка на другое устройство Wi-Fi поднимает задержку у остальных."
+
+msgid "Flow offloading"
+msgstr "Ускорение потоков"
+
+msgid "Grant access to the operating modes"
+msgstr "Доступ к режимам работы"
+
+msgid "Internet connections slower than ~300 Mbit/s whose latency grows a lot when the connection is busy (grade C–F in a bufferbloat test)."
+msgstr "Интернет-подключения медленнее ~300 Мбит/с, у которых задержка сильно растёт, когда канал занят (оценка C–F в тесте bufferbloat)."
+
+msgid "Internet downloads to 5 GHz Wi-Fi devices are handled by the CPU instead of the hardware (WED off): 600 Mbit/s take ~70% of one CPU core instead of ~55%. On a 1 Gbit/s plan Wi-Fi devices may not reach the full speed."
+msgstr "Загрузки из интернета на устройства Wi-Fi 5 ГГц обрабатывает CPU, а не оборудование (WED выключен): 600 Мбит/с занимают ~70% одного ядра CPU вместо ~55%. На тарифе 1 Гбит/с устройства Wi-Fi могут не получить полную скорость."
+
+msgid "Internet traffic runs at full speed with almost no CPU load: routing and NAT are done by the hardware, downloads to 5 GHz Wi-Fi devices too (WED)."
+msgstr "Интернет работает на полной скорости почти без нагрузки на CPU: маршрутизацию и NAT выполняет оборудование, загрузки на устройства Wi-Fi 5 ГГц тоже (WED)."
+
+msgid "Large copies from a wired NAS or PC to one Wi-Fi device."
+msgstr "Большие копирования с проводного NAS или ПК на одно устройство по Wi-Fi."
+
+msgid "Low and stable latency even when the internet connection is fully loaded (CAKE)."
+msgstr "Низкая и стабильная задержка даже при полностью загруженном интернет-канале (CAKE)."
+
+msgid "Low latency"
+msgstr "Низкая задержка"
+
+msgid "Maximum throughput"
+msgstr "Максимум скорости"
+
+msgid "Modes"
+msgstr "Режимы"
+
+msgid "NAT: %s"
+msgstr "NAT: %s"
+
+msgid "No changes."
+msgstr "Изменений нет."
+
+msgid "Not for VR streaming or gaming over Wi-Fi: they need low latency more than a low CPU load."
+msgstr "Не для VR-стриминга и игр по Wi-Fi: им важнее низкая задержка, чем низкая загрузка CPU."
+
+msgid "Nothing to change."
+msgstr "Менять нечего."
+
+msgid "On a fast connection without bufferbloat this mode only costs speed."
+msgstr "На быстром подключении без bufferbloat этот режим только отнимает скорость."
+
+msgid "On an ordinary evening (a TV streaming 4K, phones) the Wi-Fi latency stays as low as on a quiet network, with peaks around 14 ms."
+msgstr "В обычный вечер (ТВ смотрит 4K, телефоны) задержка Wi-Fi такая же низкая, как в тишине, пики около 14 мс."
+
+msgid "Operating mode"
+msgstr "Режим работы"
+
+msgid "PPE entries in use"
+msgstr "Занято записей PPE"
+
+msgid "Packet steering"
+msgstr "Распределение пакетов по ядрам"
+
+msgid "Pros"
+msgstr "Плюсы"
+
+msgid "Reboot now"
+msgstr "Перезагрузить"
+
+msgid "Rebooting…"
+msgstr "Перезагрузка…"
+
+msgid "Recommended for:"
+msgstr "Для кого:"
+
+msgid "SQM (CAKE on the WAN)"
+msgstr "SQM (CAKE на WAN)"
+
+msgid "SQM (slow link)"
+msgstr "SQM (медленный канал)"
+
+msgid "SQM does not work together with hardware flow offloading."
+msgstr "SQM не работает вместе с аппаратным ускорением потоков."
+
+msgid "SQM needs the sqm-scripts package."
+msgstr "Для SQM нужен пакет sqm-scripts."
+
+msgid "SQM rates"
+msgstr "Скорости SQM"
+
+msgid "SQM rates: %s / %s Mbit/s"
+msgstr "Скорости SQM: %s / %s Мбит/с"
+
+msgid "Saves energy when the network is idle (schedutil governor)."
+msgstr "Экономит энергию, когда сеть простаивает (регулятор schedutil)."
+
+msgid "Set 85–95% of the speeds measured without SQM, e.g. with a bufferbloat test:"
+msgstr "Укажите 85–95% от скоростей, измеренных без SQM, например тестом bufferbloat:"
+
+msgid "Sets flow offloading, WED, bridger, packet steering, the CPU frequency governor and SQM together, as modes tested on this router."
+msgstr "Задаёт ускорение потоков, WED, bridger, распределение пакетов по ядрам, регулятор частоты CPU и SQM вместе — режимами, проверенными на этом роутере."
+
+msgid "Slightly lower latency when the network is quiet: the CPU stays at its maximum clock (performance governor)."
+msgstr "Чуть ниже задержка, когда сеть не нагружена: CPU всё время работает на максимальной частоте (регулятор performance)."
+
+msgid "The CPU stays at its maximum clock (performance governor): the router runs about 2 °C warmer."
+msgstr "CPU всё время работает на максимальной частоте (регулятор performance): роутер теплее примерно на 2 °C."
+
+msgid "The router is rebooting."
+msgstr "Роутер перезагружается."
+
+msgid "The router runs about 2 °C warmer (performance governor)."
+msgstr "Роутер теплее примерно на 2 °C (регулятор performance)."
+
+msgid "Upload, Mbit/s"
+msgstr "Отдача, Мбит/с"
+
+msgid "Used only when SQM is on: in the SQM mode or under Advanced."
+msgstr "Используются, только когда SQM включён: в режиме SQM или в «Расширенных»."
+
+msgid "VR streaming from a wired PC to a headset, online gaming over Wi-Fi."
+msgstr "VR-стриминг с проводного ПК на шлем, онлайн-игры по Wi-Fi."
+
+msgid "WED (internet traffic to 5 GHz Wi-Fi in hardware)"
+msgstr "WED (трафик из интернета на Wi-Fi 5 ГГц аппаратно)"
+
+msgid "When several 5 GHz Wi-Fi devices receive data from wired devices at the same time, they share the airtime less fairly: one of them can be left with very little speed."
+msgstr "Когда несколько устройств Wi-Fi 5 ГГц одновременно получают данные от проводных устройств, эфир делится между ними менее справедливо: одному может почти не достаться скорости."
+
+msgid "While one Wi-Fi device downloads at full speed, the other Wi-Fi devices get slightly higher latency peaks than in the Low latency mode: about 30 ms instead of 27 ms."
+msgstr "Пока одно устройство Wi-Fi качает на полной скорости, у остальных устройств Wi-Fi пики задержки чуть выше, чем в режиме «Низкая задержка»: около 30 мс вместо 27 мс."
+
+msgid "Wi-Fi priorities (WMM, used e.g. for voice and video calls) do not apply to data from wired devices to 5 GHz Wi-Fi devices."
+msgstr "Приоритеты Wi-Fi (WMM, например для голосовых и видеозвонков) не применяются к данным от проводных устройств к устройствам Wi-Fi 5 ГГц."
+
+msgid "Your own combination of the settings under Advanced. This mode is also shown when the settings were changed on other pages or from the command line."
+msgstr "Своё сочетание настроек из «Расширенных». Этот режим показывается и тогда, когда настройки изменили на других страницах или из командной строки."
+
+msgid "active"
+msgstr "действует"
+
+msgid "bridger (wired to 5 GHz Wi-Fi traffic in hardware)"
+msgstr "bridger (трафик с провода на Wi-Fi 5 ГГц аппаратно)"
+
+msgid "bridger needs WED to forward traffic in hardware."
+msgstr "bridger пересылает трафик аппаратно только при включённом WED."
+
+msgid "bridger rules in hardware"
+msgstr "Правил bridger в оборудовании"
+
+msgid "conservative (changes the frequency in small steps)"
+msgstr "conservative (меняет частоту небольшими шагами)"
+
+msgid "hardware (PPE)"
+msgstr "аппаратное (PPE)"
+
+msgid "mode 1 (Ethernet and Wi-Fi on separate cores)"
+msgstr "режим 1 (Ethernet и Wi-Fi на разных ядрах)"
+
+msgid "mode 2 (received packets spread over both cores)"
+msgstr "режим 2 (принятые пакеты распределяются по обоим ядрам)"
+
+msgid "none"
+msgstr "нет"
+
+msgid "off"
+msgstr "выкл"
+
+msgid "on"
+msgstr "вкл"
+
+msgid "ondemand (samples the load periodically)"
+msgstr "ondemand (периодически оценивает нагрузку)"
+
+msgid "performance (always the maximum frequency)"
+msgstr "performance (всегда максимальная частота)"
+
+msgid "powersave (always the minimum frequency)"
+msgstr "powersave (всегда минимальная частота)"
+
+msgid "recommended"
+msgstr "рекомендуется"
+
+msgid "running: %s"
+msgstr "сейчас: %s"
+
+msgid "schedutil (follows the load)"
+msgstr "schedutil (следует за нагрузкой)"
+
+msgid "software"
+msgstr "программное"
+
+msgid "steering %s"
+msgstr "распределение %s"

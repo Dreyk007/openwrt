@@ -1,0 +1,16 @@
+{
+	"luci-app-tuning": {
+		"description": "Grant access to the operating modes",
+		"read": {
+			"ubus": {
+				"luci.tuning": [ "profiles", "status" ]
+			}
+		},
+		"write": {
+			"ubus": {
+				"luci.tuning": [ "apply" ],
+				"system": [ "reboot" ]
+			}
+		}
+	}
+}

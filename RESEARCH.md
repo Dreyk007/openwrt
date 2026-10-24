@@ -2,7 +2,7 @@
 
 The measurements behind the decisions of this build, taken in October 2026 on a Redmi AX6S running OpenWrt 25.12.6 (`xq-25.12`) with a real home configuration. Each section ends with the decision it led to.
 
-**Contents:** [Test setup](#test-setup) · [1. irqbalance](#1-irqbalance-vs-packet-steering) · [2. Official kmods](#2-official-kmod-compatibility) · [3. Traffic accounting](#3-traffic-accounting-with-hardware-offloading) · [4. Interface counters](#4-interface-counters-with-hardware-offloading) · [5. CPU governor](#5-cpu-frequency-governor) · [6. Latency](#6-latency-and-jitter) · [7. Kernel hardening](#7-cost-of-kernel-hardening) · [8. Extreme build](#8-extreme-build-experiment-dropped) · [9. WAN bufferbloat](#9-wan-bufferbloat-and-the-need-for-sqm) · [10. mt76 fixes](#10-wi-fi-driver-fixes-from-mt76-master) · [11. Wi-Fi ↔ LAN and bridger](#11-wi-fi--lan-throughput-and-bridger) · [12. Several clients, latency, WED](#12-several-wi-fi-clients-latency-and-wed)
+**Contents:** [Test setup](#test-setup) · [1. irqbalance](#1-irqbalance-vs-packet-steering) · [2. Official kmods](#2-official-kmod-compatibility) · [3. Traffic accounting](#3-traffic-accounting-with-hardware-offloading) · [4. Interface counters](#4-interface-counters-with-hardware-offloading) · [5. CPU governor](#5-cpu-frequency-governor) · [6. Latency](#6-latency-and-jitter) · [7. Kernel hardening](#7-cost-of-kernel-hardening) · [8. Extreme build](#8-extreme-build-experiment-dropped) · [9. WAN bufferbloat](#9-wan-bufferbloat-and-the-need-for-sqm) · [10. mt76 fixes](#10-wi-fi-driver-fixes-from-mt76-master) · [11. Wi-Fi ↔ LAN and bridger](#11-wi-fi--lan-throughput-and-bridger) · [12. Several clients, latency, WED](#12-several-wi-fi-clients-latency-and-wed) · [13. Operating modes](#13-packet-steering-mode-2-and-the-operating-modes)
 
 ## Test setup
 
@@ -99,7 +99,7 @@ The backport of the upstream `mt7530` `.get_stats64` series (Linux 6.16) and its
 
 ¹ No run above 880 Mbit/s; average of all runs. The `performance` column: runs at ≥ 880 Mbit/s.
 
-At a fixed 1.35 GHz the same work takes a smaller share of time than at the lower clocks `schedutil` picks; the CPU is not the bottleneck either way (50–60 % busy at ~900 Mbit/s over the bridge). Earlier, at idle: 3.8 % CPU with `schedutil` vs 6.0 % with `ondemand`. **Decision:** `schedutil` stays the default; `performance` can be chosen in LuCI → *System → CPU Frequency* (`luci-app-cpufreq`, see the [README](README.md#1-compiler-and-cpu-arm-cortex-a53)).
+At a fixed 1.35 GHz the same work takes a smaller share of time than at the lower clocks `schedutil` picks; the CPU is not the bottleneck either way (50–60 % busy at ~900 Mbit/s over the bridge). Earlier, at idle: 3.8 % CPU with `schedutil` vs 6.0 % with `ondemand`. **Decision:** `schedutil` stays the default; the operating modes for throughput, low latency and SQM use `performance`, and it can also be set alone ([section 13](#13-packet-steering-mode-2-and-the-operating-modes)).
 
 ## 6. Latency and jitter
 
@@ -174,7 +174,9 @@ Pings every 20 ms to 1.1.1.1 and 8.8.8.8 from the wired PC, idle and with the IS
 * CAKE at 250/150 Mbit/s: every configuration reaches the set rates with p99 10–17 ms. Downloading takes 46–50 % CPU with steering mode 1 and 51–62 % with mode 2, so mode 1 needs less CPU for the same result. A 5 GHz client downloading at 232 Mbit/s: with mode 1 one core is at 96–98 % (without WED the CPU also sends to the radio), p99 19–25 ms; mode 2 spreads the load to 67–69 % but has a p99 of up to 42 ms.
 * Software flow offloading works with SQM: the CAKE counters of `ifb4wan` and `wan` grow by ~200,000 packets per 10 s at 250 Mbit/s while no PPE entry is bound, with the same throughput and latency as without offloading.
 
-So SQM on this router shapes up to ~400 Mbit/s for wired clients and ~230–250 Mbit/s for Wi-Fi clients. The best SQM setup is software flow offloading, packet steering mode 1 and bridger left on: it moves wired → Wi-Fi traffic inside the LAN, which SQM does not shape anyway.
+* Packet steering mode 0 (no pinning, no RPS) at CAKE 250/150 Mbit/s, interleaved with mode 1 (the laptop now 4–5 m from the router): the same rates, but 10–13 points more CPU (wired downloading 52–55 % instead of 45 %, a 5 GHz client 68–69 % instead of 58 %) and a slightly higher download latency (p99 13.4–13.7 instead of 10.2–12.5 ms wired, 21.9–22.7 instead of 16.7–18.9 ms on Wi-Fi). Modes 0 and 2 both feed the single CAKE instance of each direction from two cores, which only adds lock contention: the shaper itself runs on one core at a time.
+
+So SQM on this router shapes up to ~400 Mbit/s for wired clients and ~230–250 Mbit/s for Wi-Fi clients. The best SQM setup is software flow offloading and packet steering mode 1, the best of the three modes. bridger can be left on either way: it moves wired → Wi-Fi traffic inside the LAN, which SQM does not shape anyway.
 
 ## 10. Wi-Fi driver fixes from mt76 master
 
@@ -215,7 +217,7 @@ The radio no longer counts the noise of the busy 2.4 GHz band as a busy channel,
 | LAN → Wi-Fi | 1193–1298 | 1287–1335 | 1323–1337 |
 | Wi-Fi → LAN | 1574–1804 | 1531–1774 | 1602–1754 |
 
-Modes 2 and 0 give LAN → Wi-Fi 6–11 % more, Wi-Fi → LAN does not change. Mode 1 stays: with bridger the LAN → Wi-Fi direction no longer uses the CPU at all.
+Modes 2 and 0 give LAN → Wi-Fi 6–11 % more, Wi-Fi → LAN does not change. Mode 1 stayed at first, as bridger takes the LAN → Wi-Fi direction off the CPU entirely; after bridger went off by default and a check with several clients, mode 2 became the default ([section 13](#13-packet-steering-mode-2-and-the-operating-modes)).
 
 **bridger** (OpenWrt's bridge accelerator by Felix Fietkau) attaches a BPF program to the bridge ports, learns which pairs of hosts exchange traffic and installs a `tc flower` rule per MAC pair that the `mtk_eth` driver turns into a PPE L2 flow; towards the MT7915E the PPE hands the packets to WED, past the CPU. The version in OpenWrt 25.12 (2025-10-23) offloaded nothing here:
 * on a bridge without VLAN filtering the kernel still keeps the default VLAN 1 entry of every port, and the forwarding check looked up VLAN 0 in that table, so no flow was ever created (a temporary `echo 0 > /sys/class/net/br-lan/bridge/default_pvid` worked around it; fixed upstream in `de7e00a`, 2026-03);
@@ -316,4 +318,31 @@ An ordinary evening leaves no trace with either setting. WED off only helps whil
 * TCP to the TV box costs ~46 % of one core even when the data goes through the hardware path. The box's ACKs (Wi-Fi → LAN) take the CPU path, and it acknowledges more often than the Linux laptop.
 * The TV box drops off the Wi-Fi for a second now and then by itself (also on the stock firmware); it did not happen during these runs.
 
-**Decision:** bridger is installed but off by default (`99-custom-settings`, once per configuration). It pays off only for bulk transfers to a single busy client (e.g. from a NAS) and costs latency and fairness otherwise. WED stays on: in a household it makes no noticeable difference, and gigabit plans need it. Switching it off is documented for those who want the last few milliseconds next to big downloads. No LuCI page for these modes: the defaults fit, and the special cases (SQM, bridger, WED off) take one setting each.
+**Decision:** bridger is installed but off by default (`99-custom-settings`, once per configuration). It pays off only for bulk transfers to a single busy client (e.g. from a NAS) and costs latency and fairness otherwise. WED stays on: in a household it makes no noticeable difference, and gigabit plans need it. WED off is for those who want the last few milliseconds next to big downloads. These choices became the operating modes of [section 13](#13-packet-steering-mode-2-and-the-operating-modes).
+
+## 13. Packet steering mode 2 and the operating modes
+
+**Setup:** mode 2 gave more LAN → Wi-Fi throughput in §11, but its latency had been measured with one client only and with the laptop's power save on. So it was checked again with the household tests of §12 and two busy clients: the laptop 4–5 m from the router (line of sight, −52 dBm, HE-MCS 10/11, power save off), the TV box, the phone off the Wi-Fi; bridger off, WED on, `schedutil`. The modes were switched at runtime, one round each.
+
+| | mode 1 | mode 2 |
+|---|---|---|
+| quiet: Wi-Fi gamer p99 / max | 12.8 / 17 ms | 11.9 / 14 ms |
+| evening (TV box 4K) | 13.7 / 21 ms | 13.6 / 22 ms |
+| TV box downloading at full speed from the internet | 33 / 70 ms | 32 / 85 ms |
+| VR evening: headset ping p99 / max, stream loss | 12.5 / 77 ms, 0.15 % | 9.7 / 34 ms, 0.03 % |
+| VR alone: stream loss, ping median / p99 | 0.37 %, 1.5 / 6.8 ms | 0.07 %, 1.6 / 9.4 ms |
+| bulk TCP to the laptop and the TV box, per-core CPU | 1013 Mbit/s, 36 / 85 % | 979 Mbit/s, 51 / 72 % |
+| VR next to the TV box at full speed from the LAN: stream loss, ping p99 | 3.3 %, 156 ms | 4.9 %, 58 ms |
+
+Mode 2 is no worse: the differences are within the spread of single runs, and the load is shared more evenly between the cores. With SQM mode 1 is the best of the three (§9).
+
+**Decision:** packet steering mode 2 is the default except with SQM. The settings that depend on how the router is used are combined into operating modes: LuCI → *System → Operating mode* (`luci-app-tuning`) or the `tuning` command.
+
+| Mode | Flow offloading | WED | bridger | Packet steering | Governor | SQM | Based on |
+|---|---|---|---|---|---|---|---|
+| Balanced (default) | hardware | on | off | 2 | `schedutil` | off | §12: a household evening looks the same with every setting; §5: `schedutil` saves energy |
+| Maximum throughput | hardware | on | on | 2 | `performance` | off | §11: wired → 5 GHz at ~8 % CPU instead of ~70 % |
+| Low latency | hardware | off | off | 2 | `performance` | off | §12: lower p99 next to full-speed downloads; §5: lower idle latency |
+| SQM | software | off | off | 1 | `performance` | on | §9: software offloading and mode 1 are the best SQM setup; WED is unused without hardware offloading, and bridger needs WED |
+
+The page applies a mode with a reboot: WED is a module parameter anyway, and one rule is simpler than settings that apply at different times. The `tuning` command applies everything but WED at once and reports when a reboot is needed.

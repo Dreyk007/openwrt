@@ -1,5 +1,5 @@
 #!/bin/sh /etc/rc.common
-# Apply the CPU frequency governor from /etc/config/cpufreq (LuCI: System -> CPU Frequency)
+# Apply the CPU frequency governor from /etc/config/cpufreq (LuCI: System -> Operating mode, or "tuning")
 
 START=15
 USE_PROCD=1

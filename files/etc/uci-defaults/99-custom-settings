@@ -7,7 +7,8 @@
 # configuration: a marker is stored in /etc/config/ax3200, which sysupgrade
 # keeps together with the rest of /etc/config. This way user changes, e.g.
 # disabling flow offloading in favour of SQM, survive firmware upgrades.
-# Only the collectd include cleanup below runs on every flash; the bridger default has its own marker.
+# Only the collectd include cleanup below runs on every flash; the bridger and packet steering defaults
+# have their own markers.
 #
 # Wi-Fi radio defaults are set by /etc/uci-defaults/77_wireless. The list of LuCI themes is
 # brought in line with the installed ones on every boot by /etc/init.d/luci-themes.
@@ -30,13 +31,28 @@ fi
 # bridger is installed but off by default, once per configuration (it came after the other defaults,
 # hence its own marker). It forwards wired -> 5 GHz traffic in hardware, past the airtime scheduling and
 # the queues of mac80211: much less CPU, but higher latency, and less fairness when several Wi-Fi clients
-# are busy. Enable it with "/etc/init.d/bridger enable; /etc/init.d/bridger start".
+# are busy. The Maximum throughput operating mode enables it (LuCI: System -> Operating mode, or "tuning").
 if [ -x /etc/init.d/bridger ] && [ "$(uci -q get ax3200.defaults.bridger)" != "1" ]; then
 	/etc/init.d/bridger disable
 	/etc/init.d/bridger stop 2>/dev/null
 	touch /etc/config/ax3200
 	uci set ax3200.defaults='defaults'
 	uci set ax3200.defaults.bridger='1'
+	uci -q commit ax3200
+fi
+
+# Packet steering mode 2 replaced mode 1 as the default with the operating modes. Configurations that still
+# have the old default move to mode 2 once, so that they show the Balanced mode; with SQM on, mode 1 stays,
+# as it suits SQM better. New configurations get mode 2 below.
+if [ "$(uci -q get ax3200.defaults.steering)" != "1" ]; then
+	if [ "$(uci -q get ax3200.defaults.applied)" = "1" ] && [ "$(uci -q get network.globals.packet_steering)" = "1" ] && \
+	   ! uci -q show sqm | grep -q "\.enabled='1'$"; then
+		uci set network.globals.packet_steering='2'
+		uci -q commit network
+	fi
+	touch /etc/config/ax3200
+	uci set ax3200.defaults='defaults'
+	uci set ax3200.defaults.steering='1'
 	uci -q commit ax3200
 fi
 
@@ -85,8 +101,9 @@ if [ -f /etc/config/luci_statistics ]; then
 	uci -q commit luci_statistics
 fi
 
-# Enable packet steering: pins threaded NAPI (mtk_eth, mt76) to CPUs and sets up RPS + RFS with 128 flows
-uci set network.globals.packet_steering='1'
+# Enable packet steering, mode 2: pins threaded NAPI (mtk_eth, mt76) to CPUs, spreads RPS over both
+# CPUs and sets up RFS with 128 flows (the balanced operating mode, see luci-app-tuning)
+uci set network.globals.packet_steering='2'
 uci set network.globals.steering_flows='128'
 uci -q commit network
 

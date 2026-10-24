@@ -1,0 +1,5 @@
+
+config settings 'settings'
+	option profile 'balanced'
+	option sqm_download '0'
+	option sqm_upload '0'
