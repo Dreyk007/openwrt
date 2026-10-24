@@ -1,0 +1,30 @@
+From: Dreyk <dreyksmail@gmail.com>
+Date: Sat, 24 Oct 2026 16:10:00 +0300
+Subject: [PATCH] net: ethernet: mtk_ppe: keep the L2 flow when one of its subflows ends
+
+A bridged (L2) flow offloaded through tc flower, e.g. by bridger, is a
+parent entry keyed by the MAC pair; __mtk_ppe_check_skb() binds every
+connection between the two hosts as a subflow of it.
+
+Since "net: ethernet: mtk_eth_soc: improve keeping track of offloaded
+flows" mtk_flow_entry_update_l2() clears the parent instead of the
+subflow whose hardware entry is no longer bound. The first connection
+that ends (TCP FIN, ageing, a hash collision) thus removes the parent
+from l2_flows and frees all of its subflows: the other connections stop
+being tracked, and every new connection between the two hosts finds no
+parent and stays on the CPU while the tc rule still exists.
+
+Clear only the stale subflow, as before that change.
+
+---
+--- a/drivers/net/ethernet/mediatek/mtk_ppe.c
++++ b/drivers/net/ethernet/mediatek/mtk_ppe.c
+@@ -643,7 +643,7 @@ mtk_flow_entry_update_l2(struct mtk_ppe
+ 		if (!mtk_flow_entry_update(ppe, cur, packets, bytes)) {
+ 			entry->prev_packets += cur->prev_packets;
+ 			entry->prev_bytes += cur->prev_bytes;
+-			__mtk_foe_entry_clear(ppe, entry, false);
++			__mtk_foe_entry_clear(ppe, cur, false);
+ 			continue;
+ 		}
+ 
