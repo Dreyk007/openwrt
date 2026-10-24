@@ -2,7 +2,7 @@
 
 The measurements behind the decisions of this build, taken in October 2026 on a Redmi AX6S running OpenWrt 25.12.6 (`xq-25.12`) with a real home configuration. Each section ends with the decision it led to.
 
-**Contents:** [Test setup](#test-setup) · [1. irqbalance](#1-irqbalance-vs-packet-steering) · [2. Official kmods](#2-official-kmod-compatibility) · [3. Traffic accounting](#3-traffic-accounting-with-hardware-offloading) · [4. Interface counters](#4-interface-counters-with-hardware-offloading) · [5. CPU governor](#5-cpu-frequency-governor) · [6. Latency](#6-latency-and-jitter) · [7. Kernel hardening](#7-cost-of-kernel-hardening) · [8. Extreme build](#8-extreme-build-experiment-dropped) · [9. WAN bufferbloat](#9-wan-bufferbloat-and-the-need-for-sqm)
+**Contents:** [Test setup](#test-setup) · [1. irqbalance](#1-irqbalance-vs-packet-steering) · [2. Official kmods](#2-official-kmod-compatibility) · [3. Traffic accounting](#3-traffic-accounting-with-hardware-offloading) · [4. Interface counters](#4-interface-counters-with-hardware-offloading) · [5. CPU governor](#5-cpu-frequency-governor) · [6. Latency](#6-latency-and-jitter) · [7. Kernel hardening](#7-cost-of-kernel-hardening) · [8. Extreme build](#8-extreme-build-experiment-dropped) · [9. WAN bufferbloat](#9-wan-bufferbloat-and-the-need-for-sqm) · [10. mt76 fixes](#10-wi-fi-driver-fixes-from-mt76-master) · [11. Wi-Fi ↔ LAN and bridger](#11-wi-fi--lan-throughput-and-bridger) · [12. Several clients, latency, WED](#12-several-wi-fi-clients-latency-and-wed)
 
 ## Test setup
 
@@ -193,3 +193,119 @@ Of the 387 mt76 commits since our version, 139 touch the code of this board's ch
 The radio no longer counts the noise of the busy 2.4 GHz band as a busy channel, so it waits less before sending. The threshold never goes above the weakest connected client (and −72 dBm); a far device that is not connected yet is only heard while the threshold is back at its default. If such a device has trouble joining the 2.4 GHz network, `echo 0 > /sys/kernel/debug/ieee80211/wl0/mt76/scs` restores the old behaviour until the next reboot.
 
 **Not taken:** the whole mt76 HEAD needs mac80211 7.2 APIs (`ieee80211_txq_aql_pending()`, link-ID template getters) that OpenWrt main only builds on kernel 6.18. The power-save buffering for MT7915 (`9a46d8d21d`, `9e613fb007`) is a behaviour change with little effect here: offloaded traffic from the WAN goes through WED past the driver, and only host-path frames to dozing 5 GHz clients would be affected. mac80211 fixes from Linux 6.18.56–58 (e.g. extension frame validation, oversized fragments, PS teardown) arrive with the next mac80211 update of 25.12, which happened every 2–3 months so far.
+
+## 11. Wi-Fi ↔ LAN throughput and bridger
+
+**Setup:** the laptop (Intel Wi-Fi 6, 2×2, HE160 on channel 100) about 1 m from the router at −45 dBm, link rate 1815–2268 Mbit/s to the laptop and 2402 Mbit/s from it. Two wired iperf3 servers, the build PC on `lan1` and a mini-server on `lan2`, both at once with 4 streams each for 20 s (the first 2 s left out), so that no single gigabit port caps the sum; wired ↔ wired gives 931–941 Mbit/s. Router CPU per core from `/proc/stat`, the transmit/receive airtime of the station from `/sys/kernel/debug/ieee80211/wl1/netdev:wl1-ap0/stations/<mac>/airtime`. The `performance` governor was set for the comparisons, the configurations were switched at runtime and run interleaved.
+
+**Before:** LAN → Wi-Fi reached ~1.2 Gbit/s with CPU1 at 94–99 % (~30 % softirq) and CPU0 at ~40 %. Packet steering pins the Ethernet NAPI threads to CPU0 and steers the `eth0` RPS to CPU1, where the bridge and the mac80211 transmit path run next to the `mt76-tx` worker and the TX completion NAPI of the 5 GHz radio, which are also pinned to CPU1. Wi-Fi → LAN reached 1.5–1.8 Gbit/s at ~80 % CPU, both cores loaded. One wired source alone gives at most ~940 Mbit/s, so earlier single-source tests could not show this limit.
+
+**Packet steering modes**, without bridger (Mbit/s, two runs of 2 and 3 rounds):
+
+| | mode 1 (default) | mode 2 (RPS to both CPUs) | mode 0 (no pinning, no RPS) |
+|---|---|---|---|
+| LAN → Wi-Fi | 1193–1298 | 1287–1335 | 1323–1337 |
+| Wi-Fi → LAN | 1574–1804 | 1531–1774 | 1602–1754 |
+
+Modes 2 and 0 give LAN → Wi-Fi 6–11 % more, Wi-Fi → LAN does not change. Mode 1 stays: with bridger the LAN → Wi-Fi direction no longer uses the CPU at all.
+
+**bridger** (OpenWrt's bridge accelerator by Felix Fietkau) attaches a BPF program to the bridge ports, learns which pairs of hosts exchange traffic and installs a `tc flower` rule per MAC pair that the `mtk_eth` driver turns into a PPE L2 flow; towards the MT7915E the PPE hands the packets to WED, past the CPU. The version in OpenWrt 25.12 (2025-10-23) offloaded nothing here:
+* on a bridge without VLAN filtering the kernel still keeps the default VLAN 1 entry of every port, and the forwarding check looked up VLAN 0 in that table, so no flow was ever created (a temporary `echo 0 > /sys/class/net/br-lan/bridge/default_pvid` worked around it; fixed upstream in `de7e00a`, 2026-03);
+* the switch port (`lan1`) refuses the `skip_sw` rule with `EOPNOTSUPP`, but the error callback returned `NL_SKIP` for errors without an extended ACK message, so the refusal looked like a success and the conduit `eth0`, where the PPE takes the very same rule, was never tried (fixed upstream in `7a0d64f` and `2a2d126`, 2026-09). A manual `tc filter add dev eth0 ingress … flower skip_sw indev lan1 … action mirred egress redirect dev wl1-ap0` was offloaded at once: 929 Mbit/s at 6 / 18 % CPU.
+
+The build therefore updates bridger to Git HEAD 2026-09-17. Then a kernel bug showed up: OpenWrt's pending `736-03` clears the parent L2 flow in `mtk_flow_entry_update_l2()` when one of its subflows is no longer bound, instead of that subflow. Test: a long 50 Mbit/s TCP stream between the build PC and the laptop, a full-speed transfer between the same hosts, then two more 20 s apart:
+
+| | first transfer | second | third |
+|---|---|---|---|
+| without the fix | 5 / 17 % CPU, in the PPE | 25 / 69 %, on the CPU | 24 / 71 %, on the CPU |
+| with `976` | 4 / 16 % | 6 / 17 % | 6 / 16 % |
+
+Without the fix the hardware byte counter of the rule stopped as well: even the long stream had left the PPE.
+
+**Result** on the test firmware (bridger 2026-09-17 + `976`), 3 interleaved rounds; the UDP row is one 500 Mbit/s stream from the build PC to the laptop with 100 pings/s from the laptop to the mini-server meanwhile (Wi-Fi power save of the laptop on):
+
+| | mode 1 | mode 2 | bridger + mode 1 | bridger + mode 2 |
+|---|---|---|---|---|
+| LAN → Wi-Fi TCP, Mbit/s | 1193–1298 | 1287–1331 | 1174–1323 | 1143–1344 |
+| router CPU (both cores) | 67–76 % | 77–79 % | **8–9 %** | **7–8 %** |
+| Wi-Fi → LAN TCP, Mbit/s | 1574–1804 | 1531–1709 | 1539–1760 | 1502–1782 |
+| router CPU | 78–86 % | 80–83 % | 65–75 % | 68–72 % |
+| UDP 500 Mbit/s LAN → Wi-Fi: CPU | 32–33 % | 33–38 % | **10–11 %** | 11–12 % |
+| ping meanwhile, median / p99 | 3.3–3.5 / 17–26 ms | 3.1–3.2 / 16–28 ms | 3.5–3.7 / 18–21 ms | 3.7–3.9 / 23–52 ms |
+
+With bridger the LAN → Wi-Fi throughput stays the same: the station's transmit airtime is ~85 %, so the radio link is the limit, not the CPU. Wi-Fi → LAN is unchanged, as expected without WED RX. Latency with a saturating download (one wired PC → laptop, 4 TCP streams, ~937 Mbit/s, 100 pings/s to the mini-server): median / p99 5.6–6.3 / 24–36 ms without bridger, 4.8–5.6 / 22–31 ms with it, so with one client the bypassed mac80211 queues cost nothing in this test. These single-client latency runs had the laptop's Wi-Fi power save on, which adds its own delay; with it off and with several clients the hardware path does cost latency and fairness, see [section 12](#12-several-wi-fi-clients-latency-and-wed). **Decision:** bridger is in the image but off by default.
+
+**Functional checks with bridger** (a UDP stream from the build PC to the laptop, the event in the middle):
+* client reconnect (hostapd deauthenticates the laptop during a 20 Mbit/s stream): data flows again 1–2 s later, in a new hardware rule; 4 s without bridger. Disconnecting and reconnecting on the laptop (`nmcli device disconnect/connect`): back 5 s later;
+* band change of the client (5 → 2.4 → 5 GHz): the rule goes away as the client leaves 5 GHz, the stream continues over the CPU on 2.4 GHz 5 s after the switch (the time to reassociate), and gets a new hardware rule 2 s after the return to 5 GHz;
+* `wifi` restart during a transfer: back after ~15 s, again in hardware;
+* `/etc/init.d/firewall reload` during a 200 Mbit/s stream: one second at 176 Mbit/s, 0.5 % loss; `/etc/init.d/network reload`: no effect;
+* `kill -9` of bridger: procd restarts it after ~5 s, the stream keeps flowing. This showed a bridger bug: the rule of the killed instance stayed on `eth0`, and the new instance did not know it. When the client then moved to 2.4 GHz, the PPE kept sending its stream to `wl1-ap0`: 44 s without traffic until the client came back to 5 GHz. At startup bridger removes the rules an earlier instance left behind, but it attaches a bridge port before it looks up the port's offload device, so `eth0` was never cleaned. `package/network/services/bridger/patches/100-…` looks the offload device up first; with it the new instance replaces the rule within 2 s and the band change works;
+* 128 parallel UDP streams from the build PC to the laptop (the laptop's iperf3 3.16 crashed with more): ~900 Mbit/s, the port limit, 208 bound PPE entries, CPU 6 / 56 %, so part of the traffic stays on the CPU with that many flows; a WAN download to the laptop meanwhile was counted by nlbwmon at 105 % (headers), as without bridger;
+* traffic from the router itself to the laptop (iperf3 server on the router): 855–880 Mbit/s with and without bridger;
+* clients on 2.4 GHz (the MT7622 WMAC has no WED) get no hardware rule, their traffic stays on the CPU path; all 10 clients of the 2.4 GHz radio stayed connected and active;
+* WAN downloads are not affected (~500 Mbit/s, the ISP limit, at 11 % CPU, PPE entries from the flowtable as before);
+* 5 minutes of alternating full-speed LAN ↔ Wi-Fi transfers: no kernel warnings, bridger keeps running.
+
+**Pitfalls:**
+* `iw dev wl1-ap0 station del <mac>` removes the station behind hostapd's back: the client reassociates within 2 s but passes no traffic for about a minute, with or without bridger. Use `ubus call hostapd.wl1-ap0 del_client '{"addr":"<mac>","reason":3,"deauth":true,"ban_time":0}'`.
+* sysupgrade keeps services that were disabled before the upgrade disabled (`/etc/uci-defaults/10_disable_services`), so a router that had `bridger` disabled during tests comes up without it: `/etc/init.d/bridger enable; /etc/init.d/bridger start`.
+* The fixed-rate UDP test keeps the airtime at ~85 % even at 500 Mbit/s: paced packets leave in short A-MPDUs. Airtime is only a capacity measure when the link is saturated.
+
+## 12. Several Wi-Fi clients, latency and WED
+
+**Setup:** three 5 GHz clients: the laptop as a VR headset (2×2 HE160, ~1 m, Wi-Fi power save off), an Android TV box (Ugoos AM8, Android 14, 2×2 HE80, −48 dBm, link rate 865–907 Mbit/s) and a phone (2×2 HE160). Sources: the mini-server sends to the laptop, the build PC to the TV box and the phone. "VR" is a 200 Mbit/s UDP stream to the laptop plus 100 pings/s from the laptop to the mini-server. 3 interleaved rounds per configuration, `schedutil` governor; airtime per station from mac80211's debugfs.
+
+**Bulk TCP to several clients** (the phone's iperf3 app takes one stream, the others four):
+
+| | bridger on | bridger off |
+|---|---|---|
+| laptop + TV box | 892–930 Mbit/s, CPU 23–25 % | 910–965 Mbit/s, CPU 55–59 % |
+| laptop + TV box + phone | 580–630 Mbit/s; phone 61–129; laptop 36–48 % of the airtime | 790–810 Mbit/s; phone 228–270; 24–36 % of the airtime each |
+
+Without bridger mac80211's airtime scheduler shares the air evenly and every client sends large aggregates. On the hardware path the laptop took up to half of the airtime for less throughput, and the single-stream phone was nearly starved.
+
+**VR stream with background traffic** (loss / ping median / p99 / max):
+
+| Background | bridger on | bridger off |
+|---|---|---|
+| none | 0.02–0.75 % / 3.0–3.7 / 18–33 / 40–74 ms | 0.06–0.15 % / 1.7 / 7–10 / 16–35 ms |
+| TV box 40 Mbit/s from the LAN | 0.08–0.27 % / 3.0–3.4 / 25–47 / 69–112 ms | 0.01–0.49 % / 2.1–2.2 / 13–16 / 27–38 ms |
+| TV box 48 Mbit/s from the internet (WED) | 0.16–0.35 % / 3.6–3.9 / 33–39 / 59–91 ms | 0.25–0.94 % / 2.0–2.2 / 20–68 / 39–140 ms |
+| TV box 200 Mbit/s + phone 30 Mbit/s from the LAN | 0.9–3.8 % / 4.6–5.6 / 22–160 / 38–385 ms | 0.8–2.2 % / 3.5–3.8 / 16–19 / 28–31 ms |
+| TV box at full speed from the internet (~300 Mbit/s) | 0.8–4.6 % / 5.5–6.4 / 62–75 / 129–170 ms | 0.8–1.6 % / 5.2–7.8 / 52–102 / 89–385 ms |
+| TV box at full speed from the LAN (~600 Mbit/s) | 2.0–3.2 % / 9.0–10.6 / 61–114 / 125–205 ms | 2.2–15 % / 9.0–10.9 / 44–98 / 97–253 ms |
+
+Even alone, the stream on the hardware path had twice the median latency and used 84–85 % of the airtime instead of 69–70 % for the same 200 Mbit/s: frames go to the firmware as they come instead of being aggregated in mac80211's queues. A client downloading at full speed next to the VR stream hurts in every configuration.
+
+**DSCP EF** on the VR stream and the pings (WMM voice), the TV box at full speed from the LAN: the ping p99 fell to 11–16 ms in both modes. Only without bridger did the stream itself get priority: its share of the airtime rose from 17 % to 31–45 % and the TV box yielded. With bridger its share stayed at 20 %, so the hardware path ignores WMM priority, and only the pings, which stay on the CPU path, benefited.
+
+**WED off** (`wed_enable=N`, bridger off), same tests:
+
+| | WED on | WED off |
+|---|---|---|
+| WAN → laptop, 4 downloads | 571–583 Mbit/s, CPU 17 / 55 % | 578–602 Mbit/s, CPU 24–27 / 70 % |
+| VR alone | 0.06–0.15 % / 1.7 / 7–10 / 16–35 ms | 0.01–0.04 % / 1.6–1.7 / 6–7 / 12–20 ms |
+| VR + TV box 48 Mbit/s from the internet | 0.25–0.94 % / 2.0–2.2 / 20–68 / 39–140 ms | 0.02–0.13 % / 2.1–2.2 / 21–27 / 36–123 ms |
+| VR + TV box at full speed from the internet | 0.8–1.6 % / 5.2–7.8 / 52–102 / 89–385 ms | 0.3–2.4 % / 4.2–4.5 / 32–44 / 55–84 ms |
+
+This comparison was not equal: the WED-on runs were made ~3.5 h after a boot, the WED-off runs right after one. The household runs below alternate WED on → off → on with a reboot before each block, and they show a much smaller difference. The CPU handles the ISP's 600 Mbit/s without WED with headroom; on a gigabit plan it would likely limit the WAN → Wi-Fi speed.
+
+**A household evening** (`household.sh`): the laptop as a gamer on Wi-Fi pings 1.1.1.1 at 50/s for 60 s, and the wired build PC pings it too. The TV box plays "4K" the way streaming apps do: 10 MB at full speed from the internet every 4 s, ~16 Mbit/s on average. The phone lies asleep. "VR" adds the 200 Mbit/s stream, with the laptop pinging the mini-server. Blocks WED on → off → on, 2 rounds each; gamer p99 / max:
+
+| | WED on | WED off | WED on again |
+|---|---|---|---|
+| quiet | 12.4–13.4 / 15 ms | 11.4–13.0 / 15 ms | 11.2–12.7 / 15 ms |
+| evening (TV box 4K) | 13.9–14.0 / 22–25 ms | 12.9–13.2 / 15–19 ms | 13.6–13.7 / 21 ms |
+| TV box downloading at full speed from the internet | 30–42 / 62–88 ms | 26.5–26.9 / 45–46 ms | 30 / 58–59 ms |
+| VR evening (headset ping, stream loss) | 7.8–10.6 / 18–42 ms, 0.04 % | 8.4–8.7 / 20–50 ms, 0.04–0.11 % | 6.2–6.9 / 24–26 ms, 0.01–0.11 % |
+| CPU during the full-speed download | 31–32 % | 37–40 % | 30–33 % |
+
+An ordinary evening leaves no trace with either setting. WED off only helps while another Wi-Fi client downloads at full speed, and only a little. The wired gamer was unaffected in all runs (p99 10–14 ms). An earlier series of the same test was spoiled by a real phone in use next to it: short videos loading in full-speed bursts raised the gamer's p99 to 45–121 ms in one block.
+
+**Side findings:**
+* With `schedutil`, the `sugov:0` thread (frequency changes) takes ~20 % of a core under a steady 200 Mbit/s stream, so light loads show more CPU than with `performance`. In §11, `performance` was set; in this section, `schedutil`.
+* TCP to the TV box costs ~46 % of one core even when the data goes through the hardware path. The box's ACKs (Wi-Fi → LAN) take the CPU path, and it acknowledges more often than the Linux laptop.
+* The TV box drops off the Wi-Fi for a second now and then by itself (also on the stock firmware); it did not happen during these runs.
+
+**Decision:** bridger is installed but off by default (`99-custom-settings`, once per configuration). It pays off only for bulk transfers to a single busy client (e.g. from a NAS) and costs latency and fairness otherwise. WED stays on: in a household it makes no noticeable difference, and gigabit plans need it. Switching it off is documented for those who want the last few milliseconds next to big downloads. No LuCI page for these modes: the defaults fit, and the special cases (SQM, bridger, WED off) take one setting each.

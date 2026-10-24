@@ -7,7 +7,7 @@
 # configuration: a marker is stored in /etc/config/ax3200, which sysupgrade
 # keeps together with the rest of /etc/config. This way user changes, e.g.
 # disabling flow offloading in favour of SQM, survive firmware upgrades.
-# Only the collectd include cleanup below runs on every flash.
+# Only the collectd include cleanup below runs on every flash; the bridger default has its own marker.
 #
 # Wi-Fi radio defaults are set by /etc/uci-defaults/77_wireless. The list of LuCI themes is
 # brought in line with the installed ones on every boot by /etc/init.d/luci-themes.
@@ -25,6 +25,19 @@ if [ "$(uci -q get luci_statistics.collectd.Include)" = "/etc/collectd/conf.d" ]
    [ ! -d /etc/collectd/conf.d ]; then
 	uci -q delete luci_statistics.collectd.Include
 	uci -q commit luci_statistics
+fi
+
+# bridger is installed but off by default, once per configuration (it came after the other defaults,
+# hence its own marker). It forwards wired -> 5 GHz traffic in hardware, past the airtime scheduling and
+# the queues of mac80211: much less CPU, but higher latency, and less fairness when several Wi-Fi clients
+# are busy. Enable it with "/etc/init.d/bridger enable; /etc/init.d/bridger start".
+if [ -x /etc/init.d/bridger ] && [ "$(uci -q get ax3200.defaults.bridger)" != "1" ]; then
+	/etc/init.d/bridger disable
+	/etc/init.d/bridger stop 2>/dev/null
+	touch /etc/config/ax3200
+	uci set ax3200.defaults='defaults'
+	uci set ax3200.defaults.bridger='1'
+	uci -q commit ax3200
 fi
 
 [ "$(uci -q get ax3200.defaults.applied)" = "1" ] && exit 0

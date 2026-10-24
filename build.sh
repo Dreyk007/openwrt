@@ -60,6 +60,7 @@ DEPS_PACKAGES=(
     build-essential
     ca-certificates
     clang
+    llvm
     flex
     bison
     g++
@@ -100,7 +101,7 @@ if [ "$INSTALL_DEPS" -eq 1 ]; then
 else
     # Quick sanity check for essential tools
     MISSING_TOOLS=()
-    for tool in gcc g++ make gawk bison flex git rsync swig; do
+    for tool in gcc g++ make gawk bison flex git rsync swig clang llc; do
         if ! command -v "$tool" >/dev/null 2>&1; then
             MISSING_TOOLS+=("$tool")
         fi
