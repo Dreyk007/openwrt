@@ -301,7 +301,7 @@ Even alone, the stream on the hardware path had twice the median latency and use
 
 This comparison was not equal: the WED-on runs were made ~3.5 h after a boot, the WED-off runs right after one. The household runs below alternate WED on → off → on with a reboot before each block, and they show a much smaller difference. The CPU handles the ISP's 600 Mbit/s without WED with headroom; on a gigabit plan it would likely limit the WAN → Wi-Fi speed.
 
-**A household evening** (`household.sh`): the laptop as a gamer on Wi-Fi pings 1.1.1.1 at 50/s for 60 s, and the wired build PC pings it too. The TV box plays "4K" the way streaming apps do: 10 MB at full speed from the internet every 4 s, ~16 Mbit/s on average. The phone lies asleep. "VR" adds the 200 Mbit/s stream, with the laptop pinging the mini-server. Blocks WED on → off → on, 2 rounds each; gamer p99 / max:
+**A household evening:** the laptop as a gamer on Wi-Fi pings 1.1.1.1 at 50/s for 60 s, and the wired build PC pings it too. The TV box plays "4K" the way streaming apps do: 10 MB at full speed from the internet every 4 s, ~16 Mbit/s on average. The phone lies asleep. "VR" adds the 200 Mbit/s stream, with the laptop pinging the mini-server. Blocks WED on → off → on, 2 rounds each; gamer p99 / max:
 
 | | WED on | WED off | WED on again |
 |---|---|---|---|
