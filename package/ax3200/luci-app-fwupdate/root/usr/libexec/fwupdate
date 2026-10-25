@@ -1,0 +1,257 @@
+#!/usr/bin/ucode
+// Firmware update check of the Xiaomi AX3200 / Redmi AX6S build (luci-app-fwupdate).
+//
+//   fwupdate check     read release.json of the latest GitHub release and write
+//                      /tmp/fwupdate/status.json: is there a newer release, what changed,
+//                      and how it may be installed (auto, reset, manual)
+//   fwupdate download  download the sysupgrade image of that release to /tmp/fwupdate,
+//                      check its size and SHA256 and that sysupgrade accepts it
+//
+// Exit codes: 0 done, 2 no connection (worth trying again soon), 1 any other error.
+// Everything is kept in /tmp: a check never writes to the flash.
+
+'use strict';
+
+import { readfile, writefile, rename, unlink, mkdir, popen, stat } from 'fs';
+import { cursor } from 'uci';
+
+const DIR = '/tmp/fwupdate';
+const STATUS = DIR + '/status.json';
+const DOWNLOAD = DIR + '/download.json';
+const IMAGE = DIR + '/firmware.bin';
+const PART = DIR + '/firmware.part';
+const RELEASE_URL = 'https://github.com/Dreyk007/openwrt/releases/latest/download/release.json';
+const IMAGE_PREFIX = 'https://github.com/Dreyk007/openwrt/releases/download/';
+const TAG_RE = /^v([0-9]+)\.([0-9]+)\.([0-9]+)-ax3200-r([0-9]+)$/;
+const METHODS = [ 'auto', 'reset', 'manual' ];
+// free space needed in /tmp besides the image: sysupgrade also keeps the settings backup there
+const SPARE_KB = 16384;
+
+function q(s) {
+	return "'" + replace(s, "'", "'\\''") + "'";
+}
+
+function log(msg) {
+	system([ 'logger', '-t', 'fwupdate', msg ]);
+}
+
+// [ exit code, output ]
+function run(cmd) {
+	const p = popen(cmd + ' 2>&1');
+	if (!p)
+		return [ 127, '' ];
+	const out = p.read('all') || '';
+	return [ p.close(), out ];
+}
+
+function parse_json(s) {
+	try {
+		return json(s);
+	}
+	catch (e) {
+		return null;
+	}
+}
+
+function read_json(file) {
+	const s = readfile(file);
+	return (s == null) ? null : parse_json(s);
+}
+
+function write_json(file, data) {
+	writefile(file + '.tmp', sprintf('%J', data));
+	rename(file + '.tmp', file);
+}
+
+// null on success, otherwise 'network' or 'http <code>' (without -q uclient-fetch names the code)
+function fetch(url, file, timeout) {
+	const r = run(sprintf('uclient-fetch -T %d -O %s %s', timeout, q(file), q(url)));
+	if (r[0] == 0)
+		return null;
+	unlink(file);
+	if (r[0] == 8) {
+		const m = match(r[1], /HTTP error ([0-9]+)/);
+		return m ? 'http ' + m[1] : 'http';
+	}
+	return 'network';
+}
+
+function installed() {
+	const s = readfile('/etc/ax3200_release') || '';
+	const get = (k) => {
+		const m = match(s, regexp('(^|\n)' + k + "='([^']*)'"));
+		return m ? m[2] : '';
+	};
+	return { release: get('RELEASE'), commit: get('COMMIT') };
+}
+
+function tag_key(tag) {
+	const m = (type(tag) == 'string') ? match(tag, TAG_RE) : null;
+	return m ? map(slice(m, 1), (x) => +x) : null;
+}
+
+// a is a later release than b
+function later(a, b) {
+	for (let i = 0; i < 4; i++)
+		if (a[i] != b[i])
+			return a[i] > b[i];
+	return false;
+}
+
+function method(r) {
+	if (r.upgrade == null)
+		return 'auto';
+	// an upgrade method this version does not know: never install it with the button
+	return (r.upgrade in METHODS) ? r.upgrade : 'manual';
+}
+
+function valid_release(rel, prefix) {
+	if (type(rel) != 'object' || !tag_key(rel.tag) || type(rel.releases) != 'array')
+		return false;
+	const img = rel.sysupgrade;
+	return type(img) == 'object' &&
+		type(img.url) == 'string' && index(img.url, prefix) == 0 &&
+		type(img.sha256) == 'string' && match(img.sha256, /^[0-9a-f]{64}$/) &&
+		type(img.size) == 'int' && img.size > 0;
+}
+
+function check() {
+	const custom = cursor().get('fwupdate', 'settings', 'url');
+	// a test server set in the hidden option url may also serve the image
+	const prefix = custom ? (match(custom, /^https?:\/\/[^\/]+\//) || [ '-' ])[0] : IMAGE_PREFIX;
+	const old = read_json(STATUS) || {};
+	const st = { checked: time(), installed: installed() };
+
+	mkdir(DIR);
+	const err = fetch(custom || RELEASE_URL, DIR + '/release.new', 30);
+	const rel = err ? null : read_json(DIR + '/release.new');
+	unlink(DIR + '/release.new');
+
+	if (err || !valid_release(rel, prefix)) {
+		// keep what the last successful check found
+		for (let k in [ 'latest', 'local', 'update', 'method', 'releases', 'success' ])
+			if (k in old)
+				st[k] = old[k];
+		st.error = err || 'invalid';
+		write_json(STATUS, st);
+		log('check failed: ' + st.error);
+		return (err == 'network') ? 2 : 1;
+	}
+
+	const ikey = tag_key(st.installed.release);
+	const lkey = tag_key(rel.tag);
+
+	// the releases a router on this version has not got yet, newest first; a local build
+	// does not know its place, so it only looks at the latest release
+	const pending = filter(rel.releases, (r) => {
+		const k = (type(r) == 'object') ? tag_key(r.tag) : null;
+		return k && (ikey ? later(k, ikey) && !later(k, lkey) : r.tag == rel.tag);
+	});
+
+	let worst = 0;
+	for (let r in pending)
+		if (index(METHODS, method(r)) > worst)
+			worst = index(METHODS, method(r));
+
+	st.error = null;
+	st.success = st.checked;
+	st.local = !ikey;
+	st.update = ikey ? later(lkey, ikey) : false;
+	st.method = METHODS[worst];
+	st.latest = {
+		tag: rel.tag, version: rel.version, number: rel.number, date: rel.date, url: rel.url,
+		sysupgrade: rel.sysupgrade
+	};
+	st.releases = map(pending, (r) => ({
+		tag: r.tag, date: r.date, url: r.url, upgrade: method(r), note: r.note, note_url: r.note_url,
+		changes: filter(r.changes || [], (c) => type(c) == 'object' && type(c.subject) == 'string')
+	}));
+
+	// an image downloaded for another release, or another image of it, is of no use any more
+	const dl = read_json(DOWNLOAD);
+	if (dl && (dl.tag != rel.tag || (dl.sha256 && dl.sha256 != rel.sysupgrade.sha256))) {
+		unlink(IMAGE);
+		unlink(PART);
+		unlink(DOWNLOAD);
+	}
+
+	write_json(STATUS, st);
+	log(st.update ? 'new release: ' + rel.tag : 'latest release: ' + rel.tag);
+	return 0;
+}
+
+function free_kb(dir) {
+	const r = run('df -k ' + q(dir));
+	const m = match(r[1], /\n[^ ]+ +[0-9]+ +[0-9]+ +([0-9]+)/);
+	return m ? +m[1] : 0;
+}
+
+function download() {
+	const st = read_json(STATUS);
+	const dl = { state: 'error', started: time() };
+	const fail = (error, detail) => {
+		dl.error = error;
+		if (detail)
+			dl.detail = detail;
+		unlink(PART);
+		write_json(DOWNLOAD, dl);
+		log('download failed: ' + error);
+		return (error == 'network') ? 2 : 1;
+	};
+
+	mkdir(DIR);
+	if (!st || !st.latest)
+		return fail('no_release');
+	if (st.method == 'manual')
+		return fail('manual');
+
+	const img = st.latest.sysupgrade;
+	dl.tag = st.latest.tag;
+	dl.size = img.size;
+	unlink(IMAGE);
+
+	if (free_kb(DIR) < img.size / 1024 + SPARE_KB)
+		return fail('space');
+
+	dl.state = 'downloading';
+	write_json(DOWNLOAD, dl);
+	dl.state = 'error';
+
+	const err = fetch(img.url, PART, 60);
+	if (err)
+		return fail(err == 'network' ? 'network' : 'http', err);
+
+	const s = stat(PART);
+	if (!s || s.size != img.size)
+		return fail('size');
+	const sum = match(run('sha256sum ' + q(PART))[1], /^[0-9a-f]{64}/);
+	if (!sum || sum[0] != img.sha256)
+		return fail('checksum');
+	rename(PART, IMAGE);
+
+	// the same checks as LuCI's System -> Backup / Flash Firmware
+	const v = parse_json(run('ubus call system validate_firmware_image ' + q(sprintf('%J', { path: IMAGE })))[1]) || {};
+	const t = run('sysupgrade -T ' + q(IMAGE));
+	dl.valid = (v.valid !== false) && t[0] == 0;
+	dl.allow_backup = (v.allow_backup !== false);
+	dl.sha256 = img.sha256;
+	if (!dl.valid) {
+		unlink(IMAGE);
+		return fail('invalid', trim(t[1]));
+	}
+
+	dl.state = 'ready';
+	write_json(DOWNLOAD, dl);
+	log('downloaded and verified ' + dl.tag);
+	return 0;
+}
+
+switch (ARGV[0]) {
+case 'check':
+	exit(check());
+case 'download':
+	exit(download());
+default:
+	warn('usage: fwupdate check|download\n');
+	exit(1);
+}

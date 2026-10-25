@@ -1,0 +1,5 @@
+config settings 'settings'
+	option enabled '1'
+	option interval '24'
+	option notify '1'
+	option skip ''

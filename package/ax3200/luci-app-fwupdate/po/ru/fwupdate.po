@@ -1,0 +1,218 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: ru\n"
+"Plural-Forms: nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);\n"
+
+msgid "A new release of the AX3200 / AX6S build is available: %s."
+msgstr "Вышла новая версия сборки для AX3200 / AX6S: %s."
+
+msgid "AX3200 / AX6S build updates"
+msgstr "Обновления сборки AX3200 / AX6S"
+
+msgid "After every start of the router and then at the interval below. Nothing is installed without you."
+msgstr "После каждого включения роутера и затем с интервалом ниже. Без вас ничего не устанавливается."
+
+msgid "Attended Sysupgrade is installed. It offers official OpenWrt firmware, which does not include the changes of this build. Update this build on this page."
+msgstr "Установлен Attended Sysupgrade. Он предлагает официальную прошивку OpenWrt, в которой нет изменений этой сборки. Обновляйте эту сборку на этой странице."
+
+msgid "Cancel"
+msgstr "Отмена"
+
+msgid "Check for updates automatically"
+msgstr "Проверять обновления автоматически"
+
+msgid "Check for updates first."
+msgstr "Сначала проверьте наличие обновлений."
+
+msgid "Check now"
+msgstr "Проверить сейчас"
+
+msgid "Close"
+msgstr "Закрыть"
+
+msgid "Do not unplug the router while it installs the update."
+msgstr "Не отключайте роутер от питания, пока устанавливается обновление."
+
+msgid "Download a backup of the settings"
+msgstr "Скачать резервную копию настроек"
+
+msgid "Downloading the update"
+msgstr "Загрузка обновления"
+
+msgid "Downloading: %s of %s MB"
+msgstr "Загружено %s из %s МБ"
+
+msgid "Downloading…"
+msgstr "Загрузка…"
+
+msgid "GitHub returned an error"
+msgstr "GitHub вернул ошибку"
+
+msgid "GitHub returned an error (%s)"
+msgstr "GitHub вернул ошибку (%s)"
+
+msgid "Grant access to the firmware update check"
+msgstr "Доступ к проверке обновлений прошивки"
+
+msgid "Install"
+msgstr "Установить"
+
+msgid "Installed firmware"
+msgstr "Установленная прошивка"
+
+msgid "Installing the update"
+msgstr "Установка обновления"
+
+msgid "Instructions"
+msgstr "Инструкция"
+
+msgid "Interval"
+msgstr "Интервал"
+
+msgid "It has to be installed manually: see the update page."
+msgstr "Её нужно установить вручную: подробности на странице обновления."
+
+msgid "Keep settings"
+msgstr "Сохранить настройки"
+
+msgid "Last check"
+msgstr "Последняя проверка"
+
+msgid "Last successful check"
+msgstr "Последняя успешная проверка"
+
+msgid "Latest release: %s"
+msgstr "Последняя версия: %s"
+
+msgid "List of changes (%d)"
+msgstr "Список изменений (%d)"
+
+msgid "New release: %s"
+msgstr "Новая версия: %s"
+
+msgid "New releases of this build are published on GitHub. The router looks for them and can install them from this page."
+msgstr "Новые версии этой сборки публикуются на GitHub. Роутер сам их находит, а установить их можно на этой странице."
+
+msgid "No list of changes."
+msgstr "Список изменений не указан."
+
+msgid "Notice on the Overview page"
+msgstr "Уведомление на странице «Обзор»"
+
+msgid "Open the update page"
+msgstr "Открыть страницу обновления"
+
+msgid "Release"
+msgstr "Версия"
+
+msgid "Settings"
+msgstr "Настройки"
+
+msgid "Show this release again"
+msgstr "Снова показывать эту версию"
+
+msgid "Shows a notice on the Overview page when a new release is out."
+msgstr "Показывает уведомление на странице «Обзор», когда выходит новая версия."
+
+msgid "Skip this release"
+msgstr "Пропустить эту версию"
+
+msgid "The download failed: GitHub returned an error."
+msgstr "Загрузка не удалась: GitHub вернул ошибку."
+
+msgid "The download failed: no connection to GitHub."
+msgstr "Загрузка не удалась: нет связи с GitHub."
+
+msgid "The download stopped. Try again."
+msgstr "Загрузка прервалась. Попробуйте ещё раз."
+
+msgid "The downloaded file is damaged. Try again."
+msgstr "Загруженный файл повреждён. Попробуйте ещё раз."
+
+msgid "The router does not accept this firmware file."
+msgstr "Роутер не принимает этот файл прошивки."
+
+msgid "The router is installing the update. Do not unplug it."
+msgstr "Роутер устанавливает обновление. Не отключайте его от питания."
+
+msgid "The settings are kept."
+msgstr "Настройки сохранятся."
+
+msgid "The update could not be started. Try again."
+msgstr "Не удалось начать обновление. Попробуйте ещё раз."
+
+msgid "There is not enough free memory for the update."
+msgstr "Для обновления не хватает свободной памяти."
+
+msgid "This firmware cannot keep the current settings."
+msgstr "Эта прошивка не может сохранить текущие настройки."
+
+msgid "This firmware was built locally, so the router cannot tell whether this release is newer."
+msgstr "Эта прошивка собрана локально, поэтому роутер не может определить, новее ли эта версия."
+
+msgid "This is the latest release: %s."
+msgstr "Обновлений нет: %s — последняя версия."
+
+msgid "This release has to be installed manually."
+msgstr "Эту версию нужно установить вручную."
+
+msgid "This update can only be installed without keeping the settings."
+msgstr "Это обновление можно установить только без сохранения настроек."
+
+msgid "This update cannot be installed with the button below."
+msgstr "Это обновление нельзя установить кнопкой ниже."
+
+msgid "Turn off its update notices"
+msgstr "Отключить его уведомления об обновлениях"
+
+msgid "Unknown error"
+msgstr "Неизвестная ошибка"
+
+msgid "Update"
+msgstr "Обновление"
+
+msgid "Update now"
+msgstr "Обновить сейчас"
+
+msgid "Update to %s"
+msgstr "Обновление до %s"
+
+msgid "Updates"
+msgstr "Обновления"
+
+msgid "Without the settings the router starts as after a reset: address 192.168.1.1, no password, Wi-Fi password 12345678."
+msgstr "Без настроек роутер запустится как после сброса: адрес 192.168.1.1, без пароля, пароль Wi-Fi 12345678."
+
+msgid "You chose to skip this release: the Overview page does not show it."
+msgstr "Вы пропустили эту версию: страница «Обзор» её не показывает."
+
+msgid "checking…"
+msgstr "идёт проверка…"
+
+msgid "failed: %s"
+msgstr "ошибка: %s"
+
+msgid "local build"
+msgstr "локальная сборка"
+
+msgid "no connection to GitHub"
+msgstr "нет связи с GitHub"
+
+msgid "not yet"
+msgstr "ещё не было"
+
+msgid "once a day"
+msgstr "раз в сутки"
+
+msgid "once a month"
+msgstr "раз в месяц"
+
+msgid "once a week"
+msgstr "раз в неделю"
+
+msgid "release page on GitHub"
+msgstr "страница версии на GitHub"
+
+msgid "the release information could not be read"
+msgstr "не удалось прочитать сведения о версии"

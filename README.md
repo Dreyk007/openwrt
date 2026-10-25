@@ -19,7 +19,7 @@ The goal of the build is **line-rate 1 Gbps wired and Wi-Fi 6 throughput, low la
 > [!WARNING]
 > Wi-Fi is **enabled on first boot with the public default password `12345678`** and the web interface has **no root password**. Set both right after flashing (LuCI → *System → Administration* and *Network → Wireless*).
 
-**Contents:** [Highlights](#highlights) · [Installation](#installation) · [Key changes](#key-changes) · [Operating modes](#operating-modes) · [SQM or hardware offloading?](#sqm-or-hardware-offloading) · [Wi-Fi 160 MHz and VR](#wi-fi-at-160-mhz-he160-and-vr-streaming) · [Pre-installed packages](#pre-installed-packages) · [Building](#building) · [Updating to a new release](UPGRADING.md) · [Research and measurements](RESEARCH.md)
+**Contents:** [Highlights](#highlights) · [Installation](#installation) · [Key changes](#key-changes) · [Operating modes](#operating-modes) · [Firmware updates](#firmware-updates) · [SQM or hardware offloading?](#sqm-or-hardware-offloading) · [Wi-Fi 160 MHz and VR](#wi-fi-at-160-mhz-he160-and-vr-streaming) · [Pre-installed packages](#pre-installed-packages) · [Building](#building) · [Updating to a new release](UPGRADING.md) · [Research and measurements](RESEARCH.md)
 
 ---
 
@@ -31,6 +31,7 @@ The goal of the build is **line-rate 1 Gbps wired and Wi-Fi 6 throughput, low la
 * **No "6 reboots → orange LED" soft-brick:** the U-Boot boot flags are checked on every boot ([section 3](#3-nvram-anti-brick-protection-6-reboots--orange-led-fix)).
 * **Official packages work:** the kernel is built like the official one, so `kmod-*` packages from the official repository install and load ([section 7](#7-official-package-repository-compatibility-vermagic--apk)).
 * **Tuned for the Cortex-A53:** GCC 15, `-O2` with the ARMv8 Crypto and CRC32 instructions, LTO, the `schedutil` frequency governor ([section 1](#1-compiler-and-cpu-arm-cortex-a53)).
+* **Updates from the web interface:** the router looks for new releases of this build by itself, shows a notice on the Overview page and installs an update with one button ([Firmware updates](#firmware-updates)).
 * **Ready to use:** LuCI in English and Russian with the Footstrap theme, encrypted DNS (DoH), SQM, UPnP, DDNS, Wake-on-LAN, per-client traffic accounting, statistics graphs and a web terminal ([Pre-installed packages](#pre-installed-packages)).
 * **Your settings survive upgrades:** the build's defaults are applied once per configuration, not on every flash ([section 6](#6-how-the-defaults-are-applied-99-custom-settings)).
 * **Verifiable releases:** built by GitHub Actions from this repository, with a signed build provenance for every file ([Build and release with GitHub Actions](#build-and-release-with-github-actions)).
@@ -80,7 +81,7 @@ Commands on the router are run over SSH: `ssh root@192.168.1.1` (built into Linu
 If the exploit does not work with your stock firmware version, see the wiki for the alternatives (stock firmware with telnet, `netmode 4` methods, UART).
 
 ### B. Upgrade from OpenWrt 24.10 / 25.12
-The settings are kept.
+The settings are kept. From r10 on the router can do this by itself: *System → AX3200 / AX6S build updates* ([Firmware updates](#firmware-updates)).
 
 1. Download `openwrt-mediatek-mt7622-xiaomi_redmi-router-ax6s-squashfs-sysupgrade.itb` from the [latest release](https://github.com/Dreyk007/openwrt/releases/latest).
 2. In LuCI open *System → Backup / Flash Firmware*, click *Flash image...* under *Flash new firmware image*, choose the file and click *Upload*.
@@ -262,7 +263,7 @@ reboot
 
 ## Operating Modes
 
-The best acceleration settings depend on how the router is used. LuCI → *System → Operating mode* (`luci-app-tuning`, a package of this build) sets them together, as modes measured on this router ([RESEARCH.md](RESEARCH.md#13-packet-steering-mode-2-and-the-operating-modes)): the flow offloading type, WED, `bridger`, packet steering, the CPU frequency governor and SQM. Each mode lists whom it suits, its pros and cons with the measured numbers, and its warnings, in English or Russian depending on the LuCI language.
+The best acceleration settings depend on how the router is used. LuCI → *System → Operating mode* (`luci-app-tuning`, a package of this build) sets them together, as modes measured on this router ([RESEARCH.md](RESEARCH.md#13-packet-steering-mode-2-and-the-operating-modes)): the flow offloading type, WED, `bridger`, packet steering, the CPU frequency governor and SQM. Each mode lists whom it suits, its pros and cons with the measured numbers, and its warnings.
 
 | Mode | For | Settings |
 |---|---|---|
@@ -275,6 +276,14 @@ The best acceleration settings depend on how the router is used. LuCI → *Syste
 * Applying a mode reboots the router: WED can only change at boot.
 * The page shows the mode that matches the current settings; after changes on other pages it shows *Custom*.
 * The mode is kept across firmware upgrades.
+
+---
+
+## Firmware Updates
+
+From r10 on, the router looks for new releases of this build on GitHub. When a release is out, the Overview page shows a notice. LuCI → *System → AX3200 / AX6S build updates* lists what changed and installs the update with one button, with or without keeping the settings; before installing, the router checks that the file is complete and fits this router. Some releases cannot be installed this way, for example when the flash layout changes: the page then says why and links to the instructions. The check can be turned off or set to another interval on the same page.
+
+Attended Sysupgrade, OpenWrt's own update tool, is not part of this build. It can be installed separately, and an update through it works, but the router then moves to plain OpenWrt without the advantages of this build.
 
 ---
 
@@ -337,6 +346,7 @@ Measured with a 2×2 HE160 laptop as the headset about 1 m from the router (link
   * `luci-app-upnp` (`miniupnpd-nftables`), `luci-app-wol` (`etherwake`), `luci-app-watchcat`, `luci-app-wifischedule`, `luci-app-uhttpd`;
   * `luci-app-ddns`: its autostart is off while no DDNS service is enabled (set up a service, then *Services → Dynamic DNS → Start DDNS*). With a LuCI fix ([openwrt/luci#9154](https://github.com/openwrt/luci/pull/9154)): without internet the DDNS status no longer leaves LuCI's Overview empty for 10 s per service;
   * `luci-app-tuning`: operating modes (*System → Operating mode*), a package of this build in `package/ax3200/`. It replaces `luci-app-cpufreq` of earlier builds: the CPU frequency governor is set on the same page;
+  * `luci-app-fwupdate`: firmware updates (*System → AX3200 / AX6S build updates*), a package of this build in `package/ax3200/`;
   * `bridger`: wired → Wi-Fi traffic in hardware, off by default, enabled by the *Maximum throughput* mode ([section 2](#2-hardware-nat-and-wi-fi-6-acceleration-hfo--wed)).
 * **Monitoring and diagnostics:** `luci-app-nlbwmon` (per-client traffic accounting), `luci-app-statistics` (`collectd` graphs of CPU load and frequency, RAM, `br-lan`/`wan`, Wi-Fi, conntrack, hardware sensors and the MT7915E temperature; the `wan` graph includes offloaded traffic, see [Interface graphs with offloading](#2-hardware-nat-and-wi-fi-6-acceleration-hfo--wed)), `luci-app-ttyd` (web terminal), CLI tools `htop`, `nano`, `curl`, `iperf3`, `ethtool`, `tcpdump-mini`, `bind-dig`, `mtr-nojson`.
 
@@ -366,7 +376,8 @@ Subsequent builds:
 ### Build and Release with GitHub Actions
 The workflow [`.github/workflows/build-ax3200.yml`](.github/workflows/build-ax3200.yml) runs `build.sh --install-deps` on a GitHub-hosted runner (Ubuntu 26.04 by default) and publishes the files of `bin/targets/mediatek/mt7622/` — the same images, `sha256sums` and buildinfo files as a local build — as a GitHub release. It only runs on demand: *Actions → Build AX3200 firmware → Run workflow*. Options:
 * **Release tag** — empty for the next `v<OpenWrt version>-ax3200-r<N>`;
-* **Publish as a pre-release**;
+* **Publish as a pre-release**: routers do not offer pre-releases as updates;
+* **Update from LuCI** — `auto`; `reset` if the release can only be installed without keeping the settings; `manual` if it has to be installed by hand (no update button). For `reset` and `manual` the notes (and optionally a link to the instructions) are shown on the router's update page;
 * **Runner image** — `ubuntu-26.04`, or `ubuntu-24.04` as a fallback.
 
 A full build takes a few hours on the 4-core runner; the source downloads (`dl/`) are cached between runs. If the build fails, its log is attached to the run as the `build-log` artifact.

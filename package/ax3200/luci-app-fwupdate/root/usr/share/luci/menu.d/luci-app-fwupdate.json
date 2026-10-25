@@ -1,0 +1,13 @@
+{
+	"admin/system/fwupdate": {
+		"title": "AX3200 / AX6S build updates",
+		"order": 71,
+		"action": {
+			"type": "view",
+			"path": "system/fwupdate"
+		},
+		"depends": {
+			"acl": [ "luci-app-fwupdate" ]
+		}
+	}
+}

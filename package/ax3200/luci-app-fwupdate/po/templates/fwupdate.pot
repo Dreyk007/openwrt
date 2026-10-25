@@ -1,0 +1,215 @@
+msgid ""
+msgstr "Content-Type: text/plain; charset=UTF-8"
+
+msgid "A new release of the AX3200 / AX6S build is available: %s."
+msgstr ""
+
+msgid "AX3200 / AX6S build updates"
+msgstr ""
+
+msgid "After every start of the router and then at the interval below. Nothing is installed without you."
+msgstr ""
+
+msgid "Attended Sysupgrade is installed. It offers official OpenWrt firmware, which does not include the changes of this build. Update this build on this page."
+msgstr ""
+
+msgid "Cancel"
+msgstr ""
+
+msgid "Check for updates automatically"
+msgstr ""
+
+msgid "Check for updates first."
+msgstr ""
+
+msgid "Check now"
+msgstr ""
+
+msgid "Close"
+msgstr ""
+
+msgid "Do not unplug the router while it installs the update."
+msgstr ""
+
+msgid "Download a backup of the settings"
+msgstr ""
+
+msgid "Downloading the update"
+msgstr ""
+
+msgid "Downloading: %s of %s MB"
+msgstr ""
+
+msgid "Downloading…"
+msgstr ""
+
+msgid "GitHub returned an error"
+msgstr ""
+
+msgid "GitHub returned an error (%s)"
+msgstr ""
+
+msgid "Grant access to the firmware update check"
+msgstr ""
+
+msgid "Install"
+msgstr ""
+
+msgid "Installed firmware"
+msgstr ""
+
+msgid "Installing the update"
+msgstr ""
+
+msgid "Instructions"
+msgstr ""
+
+msgid "Interval"
+msgstr ""
+
+msgid "It has to be installed manually: see the update page."
+msgstr ""
+
+msgid "Keep settings"
+msgstr ""
+
+msgid "Last check"
+msgstr ""
+
+msgid "Last successful check"
+msgstr ""
+
+msgid "Latest release: %s"
+msgstr ""
+
+msgid "List of changes (%d)"
+msgstr ""
+
+msgid "New release: %s"
+msgstr ""
+
+msgid "New releases of this build are published on GitHub. The router looks for them and can install them from this page."
+msgstr ""
+
+msgid "No list of changes."
+msgstr ""
+
+msgid "Notice on the Overview page"
+msgstr ""
+
+msgid "Open the update page"
+msgstr ""
+
+msgid "Release"
+msgstr ""
+
+msgid "Settings"
+msgstr ""
+
+msgid "Show this release again"
+msgstr ""
+
+msgid "Shows a notice on the Overview page when a new release is out."
+msgstr ""
+
+msgid "Skip this release"
+msgstr ""
+
+msgid "The download failed: GitHub returned an error."
+msgstr ""
+
+msgid "The download failed: no connection to GitHub."
+msgstr ""
+
+msgid "The download stopped. Try again."
+msgstr ""
+
+msgid "The downloaded file is damaged. Try again."
+msgstr ""
+
+msgid "The router does not accept this firmware file."
+msgstr ""
+
+msgid "The router is installing the update. Do not unplug it."
+msgstr ""
+
+msgid "The settings are kept."
+msgstr ""
+
+msgid "The update could not be started. Try again."
+msgstr ""
+
+msgid "There is not enough free memory for the update."
+msgstr ""
+
+msgid "This firmware cannot keep the current settings."
+msgstr ""
+
+msgid "This firmware was built locally, so the router cannot tell whether this release is newer."
+msgstr ""
+
+msgid "This is the latest release: %s."
+msgstr ""
+
+msgid "This release has to be installed manually."
+msgstr ""
+
+msgid "This update can only be installed without keeping the settings."
+msgstr ""
+
+msgid "This update cannot be installed with the button below."
+msgstr ""
+
+msgid "Turn off its update notices"
+msgstr ""
+
+msgid "Unknown error"
+msgstr ""
+
+msgid "Update"
+msgstr ""
+
+msgid "Update now"
+msgstr ""
+
+msgid "Update to %s"
+msgstr ""
+
+msgid "Updates"
+msgstr ""
+
+msgid "Without the settings the router starts as after a reset: address 192.168.1.1, no password, Wi-Fi password 12345678."
+msgstr ""
+
+msgid "You chose to skip this release: the Overview page does not show it."
+msgstr ""
+
+msgid "checking…"
+msgstr ""
+
+msgid "failed: %s"
+msgstr ""
+
+msgid "local build"
+msgstr ""
+
+msgid "no connection to GitHub"
+msgstr ""
+
+msgid "not yet"
+msgstr ""
+
+msgid "once a day"
+msgstr ""
+
+msgid "once a month"
+msgstr ""
+
+msgid "once a week"
+msgstr ""
+
+msgid "release page on GitHub"
+msgstr ""
+
+msgid "the release information could not be read"
+msgstr ""
