@@ -75,6 +75,7 @@ git log --oneline --no-merges $BASE..xq-25.12 --author=remittor --author='David 
 | `package/ax3200/luci-app-fwupdate/` | LuCI page *System → AX3200 / AX6S build updates* and a notice on the Overview page: `/usr/libexec/fwupdate` reads `release.json` of the latest GitHub release (procd service `fwupdate`: after boot, then every `fwupdate.settings.interval` hours; state in `/tmp/fwupdate`), downloads the sysupgrade image, checks its size, SHA256 and `sysupgrade -T`, and installs it on request (rpcd ucode plugin `luci.fwupdate`). Translations: `po/ru/fwupdate.po` |
 | `.github/workflows/build-ax3200.yml`, `.github/scripts/ax3200-release-json.py` | Release workflow: the tag is chosen before the build and passed to `build.sh`; every release gets `release.json` (tag, sysupgrade image with SHA256 and size, the last 20 releases with their changes and upgrade method `auto`/`reset`/`manual` from the workflow inputs, carried over from the previous `release.json`) |
 | `README.ru.md`, `BUILDING.md`, `BUILDING.ru.md`, `UPGRADING.md`, `RESEARCH.md` | Documentation |
+| `AGENTS.md`, `CLAUDE.md` | Guidance for coding agents; `CLAUDE.md` only imports `AGENTS.md` for Claude Code |
 
 **Edits of upstream and remittor files** (possible conflict points):
 
