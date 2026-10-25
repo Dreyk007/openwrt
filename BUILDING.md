@@ -21,6 +21,7 @@ Subsequent builds:
 ```bash
 ./build.sh        # all CPU threads
 ./build.sh -j4    # custom number of parallel jobs
+./build.sh --ccache   # compiler cache in .ccache: later builds only recompile what changed
 ```
 
 ## Build and Release with GitHub Actions
@@ -30,7 +31,7 @@ The workflow [`.github/workflows/build-ax3200.yml`](.github/workflows/build-ax32
 * **Update from LuCI** — `auto`; `reset` if the release can only be installed without keeping the settings; `manual` if it has to be installed by hand (no update button). For `reset` and `manual` the notes (and optionally a link to the instructions) are shown on the router's update page;
 * **Runner image** — `ubuntu-26.04`, or `ubuntu-24.04` as a fallback.
 
-A full build takes a few hours on the 4-core runner; the source downloads (`dl/`) are cached between runs. If the build fails, its log is attached to the run as the `build-log` artifact.
+A full build takes about two hours on the 4-core runner; the source downloads (`dl/`) and the compiler cache (`.ccache`, `build.sh --ccache`) are kept between runs, so later builds are faster. If the build fails, its log is attached to the run as the `build-log` artifact.
 
 **Verifying a download.** The workflow signs a build provenance attestation for every published file ([`actions/attest`](https://github.com/actions/attest), Sigstore): it ties the file's SHA256 to the workflow run and the commit it was built from, and it is recorded in a public transparency log, so it cannot be produced for a file that this workflow did not build. The releases are immutable, so their files and tags cannot be replaced after publication either. Check a downloaded image with the [GitHub CLI](https://cli.github.com/):
 ```bash

@@ -126,10 +126,21 @@ jobs:
           key: dl-${{ hashFiles('feeds.conf.default', 'include/kernel-*', 'target/linux/generic/kernel-*') }}-${{ github.run_id }}
           restore-keys: dl-
 
+      # The compiler cache of the previous run: later builds only recompile what changed. The host
+      # compiler differs between runner images, so each image has its own cache.
+      - name: Restore compiler cache
+        uses: actions/cache@v6
+        with:
+          path: .ccache
+          key: ccache-${{ inputs.runner }}-${{ github.run_id }}
+          restore-keys: ccache-${{ inputs.runner }}-
+
       - name: Build firmware
         env:
           AX3200_RELEASE: ${{ steps.tag.outputs.tag }}
-        run: ./build.sh --install-deps 2>&1 | tee build.log
+          # OpenWrt keeps the cache uncompressed; the Actions cache compresses it
+          CCACHE_MAXSIZE: 5G
+        run: ./build.sh --install-deps --ccache 2>&1 | tee build.log
 
       - name: Upload build log
         if: failure()

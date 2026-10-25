@@ -24,6 +24,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
 INSTALL_DEPS=0
+CCACHE=0
 JOBS="$(nproc)"
 
 # Parse optional arguments
@@ -31,6 +32,9 @@ for arg in "$@"; do
     case "$arg" in
         --install-deps|-i)
             INSTALL_DEPS=1
+            ;;
+        --ccache)
+            CCACHE=1
             ;;
         -j*)
             JOBS="${arg#-j}"
@@ -40,6 +44,7 @@ for arg in "$@"; do
             echo ""
             echo "Options:"
             echo "  -i, --install-deps    Install required build dependencies via apt"
+            echo "      --ccache          Keep a compiler cache in .ccache, so that later builds only recompile what changed"
             echo "  -j<N>                 Number of parallel compilation jobs (default: $(nproc))"
             echo "  -h, --help            Show this help message"
             exit 0
@@ -152,6 +157,11 @@ fi
 
 info "Applying configuration from $CONFIG_SEED..."
 cp "$CONFIG_SEED" .config
+# The compiler cache is a build option and does not change the firmware; the seed leaves it off
+if [ "$CCACHE" = 1 ]; then
+    echo "CONFIG_CCACHE=y" >> .config
+    info "Compiler cache enabled (.ccache)"
+fi
 make defconfig
 success "Configuration applied successfully."
 
@@ -206,6 +216,14 @@ if ! make -j"$JOBS" "${SDE_ARGS[@]}"; then
     make -j1 V=s "${SDE_ARGS[@]}"
 fi
 success "Firmware compilation finished successfully."
+
+# Hits and misses of this build; the counters are reset afterwards, so that the next build
+# (also on GitHub Actions, which keeps .ccache between runs) shows its own
+if [ "$CCACHE" = 1 ] && [ -x staging_dir/host/bin/ccache ]; then
+    info "Compiler cache of this build:"
+    CCACHE_DIR="$SCRIPT_DIR/.ccache" staging_dir/host/bin/ccache --show-stats || true
+    CCACHE_DIR="$SCRIPT_DIR/.ccache" staging_dir/host/bin/ccache --zero-stats > /dev/null || true
+fi
 
 # 7. Post-process images: Extract raw UBI image and update sha256sums
 TARGET_DIR="bin/targets/mediatek/mt7622"
