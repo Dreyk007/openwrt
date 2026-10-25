@@ -193,12 +193,15 @@ make download -j"$JOBS"
 success "Source downloads complete."
 
 # 6. Compile firmware
-# The release of this image, for the firmware update check (luci-app-fwupdate): the GitHub
-# workflow passes its release tag in AX3200_RELEASE, a local build has none.
+# The release of this image and the GitHub repository that publishes it, for the firmware update
+# check (luci-app-fwupdate): the GitHub workflow passes both (AX3200_RELEASE, AX3200_REPO); a local
+# build has no release and takes the repository from the origin remote.
 COMMIT=$(git rev-parse HEAD 2>/dev/null || echo unknown)
 git diff --quiet HEAD 2>/dev/null || COMMIT="$COMMIT-dirty"
-printf "RELEASE='%s'\nCOMMIT='%s'\n" "${AX3200_RELEASE:-}" "$COMMIT" > files/etc/ax3200_release
-info "Release: ${AX3200_RELEASE:-none (local build)}, commit $COMMIT"
+REPO=${AX3200_REPO:-$(git remote get-url origin 2>/dev/null | sed -nE 's#^(https://github\.com/|git@github\.com:|ssh://git@github\.com/)([^/]+/[^/]+)$#\2#p' | sed 's/\.git$//' || true)}
+[[ "$REPO" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || REPO=""
+printf "RELEASE='%s'\nREPO='%s'\nCOMMIT='%s'\n" "${AX3200_RELEASE:-}" "$REPO" "$COMMIT" > files/etc/ax3200_release
+info "Release: ${AX3200_RELEASE:-none (local build)}, repository ${REPO:-unknown}, commit $COMMIT"
 
 # Timestamp of the files in the image: the date of this fork's last commit. Otherwise the
 # release tag's version.date gives every build of a release the same one, and with it the

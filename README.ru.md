@@ -4,7 +4,7 @@
 
 # OpenWrt 25.12.6 — оптимизированная сборка для Xiaomi AX3200 / Redmi AX6S
 
-[![Скачать последний релиз](https://img.shields.io/github/v/release/Dreyk007/openwrt?style=for-the-badge&label=%D0%A1%D0%BA%D0%B0%D1%87%D0%B0%D1%82%D1%8C&color=2ea44f)](https://github.com/Dreyk007/openwrt/releases/latest) [![Установка](https://img.shields.io/badge/%D0%A3%D1%81%D1%82%D0%B0%D0%BD%D0%BE%D0%B2%D0%BA%D0%B0-0969da?style=for-the-badge)](#установка)
+[![Скачать последний релиз](https://img.shields.io/github/v/release/Dreyk007/openwrt-ax3200?style=for-the-badge&label=%D0%A1%D0%BA%D0%B0%D1%87%D0%B0%D1%82%D1%8C&color=2ea44f)](https://github.com/Dreyk007/openwrt-ax3200/releases/latest) [![Установка](https://img.shields.io/badge/%D0%A3%D1%81%D1%82%D0%B0%D0%BD%D0%BE%D0%B2%D0%BA%D0%B0-0969da?style=for-the-badge)](#установка)
 
 **Какой файл скачать:**
 * **первая установка** со стоковой прошивки — файл, имя которого заканчивается на `factory.bin`;
@@ -50,7 +50,7 @@
 **Резервный способ:** вернуться на стоковую прошивку и поставить эту сборку уже с неё можно из любого состояния, даже если OpenWrt не загружается; см. [раздел Е](#е-возврат-на-стоковую-прошивку-и-xmir-patcher-резервный-способ).
 
 ### Файлы прошивки
-Скачайте образы из [последнего релиза](https://github.com/Dreyk007/openwrt/releases/latest) (при локальной сборке они появляются в `bin/targets/mediatek/mt7622/`):
+Скачайте образы из [последнего релиза](https://github.com/Dreyk007/openwrt-ax3200/releases/latest) (при локальной сборке они появляются в `bin/targets/mediatek/mt7622/`):
 | Файл | Назначение |
 |---|---|
 | `openwrt-mediatek-mt7622-xiaomi_redmi-router-ax6s-factory.bin` | Первая установка со стоковой прошивки (или с OpenWrt ≤ 23.05). Содержит `ubi-loader`, дополненный до 512 КБ, и следом UBI-образ. |
@@ -60,8 +60,8 @@
 | `openwrt-mediatek-mt7622-xiaomi_redmi-router-ax6s-initramfs-recovery.itb` | Initramfs-образ для восстановления (TFTP). |
 
 **Как доставить образ на роутер.** В разделах Б–Д образ попадает в `/tmp` на роутере одним из двух способов:
-* **Скачать прямо на роутере**, если у него есть доступ в интернет: ссылки `https://github.com/Dreyk007/openwrt/releases/latest/download/<файл>` всегда ведут на последний релиз, а `sha256sums` оттуда же проверяет скачанный файл. Команды приведены в каждом разделе.
-* **Скопировать с компьютера:** скачайте файл из [последнего релиза](https://github.com/Dreyk007/openwrt/releases/latest) и скопируйте его командой `scp`; она есть в Linux, macOS и Windows 10/11 (в Windows можно также использовать WinSCP с протоколом SCP). Ключ `-O` нужен, потому что в OpenWrt нет SFTP-сервера.
+* **Скачать прямо на роутере**, если у него есть доступ в интернет: ссылки `https://github.com/Dreyk007/openwrt-ax3200/releases/latest/download/<файл>` всегда ведут на последний релиз, а `sha256sums` оттуда же проверяет скачанный файл. Команды приведены в каждом разделе.
+* **Скопировать с компьютера:** скачайте файл из [последнего релиза](https://github.com/Dreyk007/openwrt-ax3200/releases/latest) и скопируйте его командой `scp`; она есть в Linux, macOS и Windows 10/11 (в Windows можно также использовать WinSCP с протоколом SCP). Ключ `-O` нужен, потому что в OpenWrt нет SFTP-сервера.
 
 Команды на роутере выполняются по SSH: `ssh root@192.168.1.1` (есть в Linux, macOS и Windows 10/11) или [PuTTY](https://www.chiark.greenend.org.uk/~sgtatham/putty/) в Windows — хост `192.168.1.1`, пользователь `root`. Пароль — тот, что задан для root в LuCI; сразу после прошивки его нет. Если адрес роутера не `192.168.1.1`, подставьте свой.
 
@@ -74,7 +74,7 @@
 4. Если адрес роутера не `192.168.31.1`, выберите `1 - Set IP-address`.
 5. Выберите **`2 - Connect to device (install exploit)`** и по запросу введите пароль веб-интерфейса.
 6. Выберите **`4 - Create full backup`**. Дампы всех разделов флеш-памяти сохраняются в папку `backups/` XMiR-Patcher — **сохраните их в надёжном месте**: в них уникальные для вашего экземпляра калибровочные данные, они нужны для возврата на сток и восстановления после брика.
-7. Скачайте `openwrt-mediatek-mt7622-xiaomi_redmi-router-ax6s-factory.bin` из [последнего релиза](https://github.com/Dreyk007/openwrt/releases/latest) и скопируйте **только** этот файл в папку `firmware/` XMiR-Patcher (других образов там быть не должно).
+7. Скачайте `openwrt-mediatek-mt7622-xiaomi_redmi-router-ax6s-factory.bin` из [последнего релиза](https://github.com/Dreyk007/openwrt-ax3200/releases/latest) и скопируйте **только** этот файл в папку `firmware/` XMiR-Patcher (других образов там быть не должно).
 8. Выберите **`7 - Install firmware (from directory "firmware")`** и дождитесь перезагрузки роутера.
 9. Откройте `http://192.168.1.1` (пользователь `root`, без пароля), задайте пароль root и смените пароль Wi-Fi.
 
@@ -83,7 +83,7 @@
 ### Б. Обновление с OpenWrt 24.10 / 25.12
 Настройки сохраняются. Начиная с r10 роутер умеет делать это сам: *Система → Обновления сборки AX3200 / AX6S* ([Обновления прошивки](#обновления-прошивки)).
 
-1. Скачайте `openwrt-mediatek-mt7622-xiaomi_redmi-router-ax6s-squashfs-sysupgrade.itb` из [последнего релиза](https://github.com/Dreyk007/openwrt/releases/latest).
+1. Скачайте `openwrt-mediatek-mt7622-xiaomi_redmi-router-ax6s-squashfs-sysupgrade.itb` из [последнего релиза](https://github.com/Dreyk007/openwrt-ax3200/releases/latest).
 2. В LuCI откройте *Система → Восстановление / Обновление*, в разделе *Установить новый образ прошивки* нажмите *Загрузка образа...*, выберите файл и нажмите *Загрузить*.
 3. Оставьте отмеченным *Сохранить настройки и оставить текущую конфигурацию* и нажмите *Продолжить*. Роутер запишет образ и перезагрузится, это занимает несколько минут; не выключайте его в это время.
 
@@ -91,8 +91,8 @@
 ```sh
 cd /tmp
 F=openwrt-mediatek-mt7622-xiaomi_redmi-router-ax6s-squashfs-sysupgrade.itb
-wget -O $F https://github.com/Dreyk007/openwrt/releases/latest/download/$F
-wget -qO- https://github.com/Dreyk007/openwrt/releases/latest/download/sha256sums | grep -- $F | sha256sum -c -
+wget -O $F https://github.com/Dreyk007/openwrt-ax3200/releases/latest/download/$F
+wget -qO- https://github.com/Dreyk007/openwrt-ax3200/releases/latest/download/sha256sums | grep -- $F | sha256sum -c -
 ```
 ```sh
 sysupgrade /tmp/openwrt-mediatek-mt7622-xiaomi_redmi-router-ax6s-squashfs-sysupgrade.itb
@@ -106,10 +106,10 @@ sysupgrade /tmp/openwrt-mediatek-mt7622-xiaomi_redmi-router-ax6s-squashfs-sysupg
    ```sh
    cd /tmp
    F=openwrt-mediatek-mt7622-xiaomi_redmi-router-ax6s-factory.bin
-   wget -O $F https://github.com/Dreyk007/openwrt/releases/latest/download/$F
-   wget -qO- https://github.com/Dreyk007/openwrt/releases/latest/download/sha256sums | grep -- $F | sha256sum -c -
+   wget -O $F https://github.com/Dreyk007/openwrt-ax3200/releases/latest/download/$F
+   wget -qO- https://github.com/Dreyk007/openwrt-ax3200/releases/latest/download/sha256sums | grep -- $F | sha256sum -c -
    ```
-   Или скачайте файл из [последнего релиза](https://github.com/Dreyk007/openwrt/releases/latest), подключите компьютер кабелем к LAN-порту и скопируйте файл:
+   Или скачайте файл из [последнего релиза](https://github.com/Dreyk007/openwrt-ax3200/releases/latest), подключите компьютер кабелем к LAN-порту и скопируйте файл:
    ```sh
    scp -O openwrt-mediatek-mt7622-xiaomi_redmi-router-ax6s-factory.bin root@192.168.1.1:/tmp/
    ```
@@ -139,10 +139,10 @@ sysupgrade /tmp/openwrt-mediatek-mt7622-xiaomi_redmi-router-ax6s-squashfs-sysupg
    ```sh
    cd /tmp
    F=openwrt-mediatek-mt7622-xiaomi_redmi-router-ax6s-sysupgrade.ubi
-   wget -O $F https://github.com/Dreyk007/openwrt/releases/latest/download/$F
-   wget -qO- https://github.com/Dreyk007/openwrt/releases/latest/download/sha256sums | grep -- $F | sha256sum -c -
+   wget -O $F https://github.com/Dreyk007/openwrt-ax3200/releases/latest/download/$F
+   wget -qO- https://github.com/Dreyk007/openwrt-ax3200/releases/latest/download/sha256sums | grep -- $F | sha256sum -c -
    ```
-   Или скачайте файл из [последнего релиза](https://github.com/Dreyk007/openwrt/releases/latest) и скопируйте его:
+   Или скачайте файл из [последнего релиза](https://github.com/Dreyk007/openwrt-ax3200/releases/latest) и скопируйте его:
    ```sh
    scp -O openwrt-mediatek-mt7622-xiaomi_redmi-router-ax6s-sysupgrade.ubi root@192.168.1.1:/tmp/
    ```
@@ -159,10 +159,10 @@ sysupgrade /tmp/openwrt-mediatek-mt7622-xiaomi_redmi-router-ax6s-squashfs-sysupg
    ```sh
    cd /tmp
    F=openwrt-mediatek-mt7622-xiaomi_redmi-router-ax6s-ubi-loader.itb
-   wget -O $F https://github.com/Dreyk007/openwrt/releases/latest/download/$F
-   wget -qO- https://github.com/Dreyk007/openwrt/releases/latest/download/sha256sums | grep -- $F | sha256sum -c -
+   wget -O $F https://github.com/Dreyk007/openwrt-ax3200/releases/latest/download/$F
+   wget -qO- https://github.com/Dreyk007/openwrt-ax3200/releases/latest/download/sha256sums | grep -- $F | sha256sum -c -
    ```
-   Или скачайте файл из [последнего релиза](https://github.com/Dreyk007/openwrt/releases/latest) и скопируйте его:
+   Или скачайте файл из [последнего релиза](https://github.com/Dreyk007/openwrt-ax3200/releases/latest) и скопируйте его:
    ```sh
    scp -O openwrt-mediatek-mt7622-xiaomi_redmi-router-ax6s-ubi-loader.itb root@192.168.1.1:/tmp/
    ```

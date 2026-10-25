@@ -13,8 +13,8 @@
 
 На чистой Ubuntu 24.04 / 26.04 LTS или Debian:
 ```bash
-git clone -b xq-25.12 https://github.com/Dreyk007/openwrt.git
-cd openwrt
+git clone -b xq-25.12 https://github.com/Dreyk007/openwrt-ax3200.git
+cd openwrt-ax3200
 ./build.sh --install-deps
 ```
 Последующие сборки:
@@ -35,8 +35,8 @@ Workflow [`.github/workflows/build-ax3200.yml`](.github/workflows/build-ax3200.y
 
 **Проверка скачанных файлов.** Для каждого публикуемого файла workflow подписывает подтверждение происхождения сборки ([`actions/attest`](https://github.com/actions/attest), Sigstore). Оно связывает SHA256 файла с запуском workflow и коммитом, из которого файл собран, и записывается в публичный журнал прозрачности, поэтому для файла, собранного не этим workflow, его получить нельзя. Релизы неизменяемые: файлы и теги после публикации тоже не подменить. Проверить скачанный образ можно через [GitHub CLI](https://cli.github.com/):
 ```bash
-gh attestation verify openwrt-mediatek-mt7622-xiaomi_redmi-router-ax6s-squashfs-sysupgrade.itb --repo Dreyk007/openwrt
-gh release verify-asset <тег релиза> openwrt-mediatek-mt7622-xiaomi_redmi-router-ax6s-squashfs-sysupgrade.itb --repo Dreyk007/openwrt
+gh attestation verify openwrt-mediatek-mt7622-xiaomi_redmi-router-ax6s-squashfs-sysupgrade.itb --repo Dreyk007/openwrt-ax3200
+gh release verify-asset <тег релиза> openwrt-mediatek-mt7622-xiaomi_redmi-router-ax6s-squashfs-sysupgrade.itb --repo Dreyk007/openwrt-ax3200
 ```
 
 > В репозитории также лежат собственные CI-workflow OpenWrt (`kernel.yml`, `packages.yml`, `toolchain.yml`, `github-release.yml`, …). Они предназначены для openwrt/openwrt: после включения Actions в форке отключите их (*Actions → workflow → ⋯ → Disable workflow* или `gh workflow disable <файл>`), иначе они будут запускаться на push и на теги `v*`.

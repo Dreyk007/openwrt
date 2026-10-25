@@ -20,8 +20,8 @@ const STATUS = DIR + '/status.json';
 const DOWNLOAD = DIR + '/download.json';
 const IMAGE = DIR + '/firmware.bin';
 const PART = DIR + '/firmware.part';
-const RELEASE_URL = 'https://github.com/Dreyk007/openwrt/releases/latest/download/release.json';
-const IMAGE_PREFIX = 'https://github.com/Dreyk007/openwrt/releases/download/';
+// the GitHub repository that publishes the releases, as build.sh recorded it; this one if not
+const DEFAULT_REPO = 'Dreyk007/openwrt-ax3200';
 const TAG_RE = /^v([0-9]+)\.([0-9]+)\.([0-9]+)-ax3200-r([0-9]+)$/;
 const METHODS = [ 'auto', 'reset', 'manual' ];
 // free space needed in /tmp besides the image: sysupgrade also keeps the settings backup there
@@ -82,7 +82,11 @@ function installed() {
 		const m = match(s, regexp('(^|\n)' + k + "='([^']*)'"));
 		return m ? m[2] : '';
 	};
-	return { release: get('RELEASE'), commit: get('COMMIT') };
+	return { release: get('RELEASE'), repo: get('REPO'), commit: get('COMMIT') };
+}
+
+function github(inst) {
+	return 'https://github.com/' + (match(inst.repo, /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/) ? inst.repo : DEFAULT_REPO);
 }
 
 function tag_key(tag) {
@@ -117,13 +121,14 @@ function valid_release(rel, prefix) {
 
 function check() {
 	const custom = cursor().get('fwupdate', 'settings', 'url');
-	// a test server set in the hidden option url may also serve the image
-	const prefix = custom ? (match(custom, /^https?:\/\/[^\/]+\//) || [ '-' ])[0] : IMAGE_PREFIX;
-	const old = read_json(STATUS) || {};
 	const st = { checked: time(), installed: installed() };
+	const repo = github(st.installed);
+	// a test server set in the hidden option url may also serve the image
+	const prefix = custom ? (match(custom, /^https?:\/\/[^\/]+\//) || [ '-' ])[0] : repo + '/releases/download/';
+	const old = read_json(STATUS) || {};
 
 	mkdir(DIR);
-	const err = fetch(custom || RELEASE_URL, DIR + '/release.new', 30);
+	const err = fetch(custom || repo + '/releases/latest/download/release.json', DIR + '/release.new', 30);
 	const rel = err ? null : read_json(DIR + '/release.new');
 	unlink(DIR + '/release.new');
 

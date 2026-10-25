@@ -13,8 +13,8 @@ Because of `CONFIG_ALL_KMODS=y` (see [README, section 7](README.md#7-official-pa
 
 On a fresh Ubuntu 24.04 / 26.04 LTS or Debian system:
 ```bash
-git clone -b xq-25.12 https://github.com/Dreyk007/openwrt.git
-cd openwrt
+git clone -b xq-25.12 https://github.com/Dreyk007/openwrt-ax3200.git
+cd openwrt-ax3200
 ./build.sh --install-deps
 ```
 Subsequent builds:
@@ -35,8 +35,8 @@ A full build takes about two hours on the 4-core runner; the source downloads (`
 
 **Verifying a download.** The workflow signs a build provenance attestation for every published file ([`actions/attest`](https://github.com/actions/attest), Sigstore): it ties the file's SHA256 to the workflow run and the commit it was built from, and it is recorded in a public transparency log, so it cannot be produced for a file that this workflow did not build. The releases are immutable, so their files and tags cannot be replaced after publication either. Check a downloaded image with the [GitHub CLI](https://cli.github.com/):
 ```bash
-gh attestation verify openwrt-mediatek-mt7622-xiaomi_redmi-router-ax6s-squashfs-sysupgrade.itb --repo Dreyk007/openwrt
-gh release verify-asset <release tag> openwrt-mediatek-mt7622-xiaomi_redmi-router-ax6s-squashfs-sysupgrade.itb --repo Dreyk007/openwrt
+gh attestation verify openwrt-mediatek-mt7622-xiaomi_redmi-router-ax6s-squashfs-sysupgrade.itb --repo Dreyk007/openwrt-ax3200
+gh release verify-asset <release tag> openwrt-mediatek-mt7622-xiaomi_redmi-router-ax6s-squashfs-sysupgrade.itb --repo Dreyk007/openwrt-ax3200
 ```
 
 > The repository also carries OpenWrt's own CI workflows (`kernel.yml`, `packages.yml`, `toolchain.yml`, `github-release.yml`, …). They are meant for openwrt/openwrt: after enabling Actions in the fork, disable them (*Actions → workflow → ⋯ → Disable workflow*, or `gh workflow disable <file>`), otherwise pushes and `v*` tags trigger them.

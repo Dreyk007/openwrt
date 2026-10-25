@@ -138,6 +138,7 @@ jobs:
       - name: Build firmware
         env:
           AX3200_RELEASE: ${{ steps.tag.outputs.tag }}
+          AX3200_REPO: ${{ github.repository }}
           # OpenWrt keeps the cache uncompressed; the Actions cache compresses it
           CCACHE_MAXSIZE: 5G
         run: ./build.sh --install-deps --ccache 2>&1 | tee build.log
