@@ -74,7 +74,7 @@ git log --oneline --no-merges $BASE..xq-25.12 --author=remittor --author='David 
 | `package/ax3200/luci-app-tuning/` | LuCI page *System → Operating mode* and the `tuning` command: modes that set flow offloading, WED (`/etc/modules.conf`), bridger, packet steering, the CPU frequency governor and SQM together ([RESEARCH.md section 13](RESEARCH.md#13-packet-steering-mode-2-and-the-operating-modes)). Backend: the rpcd ucode plugin `luci.tuning` (`root/usr/share/rpcd/ucode/tuning.uc`, the mode table); the governor is stored in `/etc/config/cpufreq` and applied by `/etc/init.d/cpufreq`, both taken over from the former `luci-app-cpufreq`. Translations: `po/ru/tuning.po`. Builds with `feeds/luci/luci.mk`, so the LuCI feed must be installed |
 | `package/ax3200/luci-app-fwupdate/` | LuCI page *System → AX3200 / AX6S build updates* and a notice on the Overview page: `/usr/libexec/fwupdate` reads `release.json` of the latest GitHub release (procd service `fwupdate`: after boot, then every `fwupdate.settings.interval` hours; state in `/tmp/fwupdate`), downloads the sysupgrade image, checks its size, SHA256 and `sysupgrade -T`, and installs it on request (rpcd ucode plugin `luci.fwupdate`). Translations: `po/ru/fwupdate.po` |
 | `.github/workflows/build-ax3200.yml`, `.github/scripts/ax3200-release-json.py` | Release workflow: the tag is chosen before the build and passed to `build.sh`; every release gets `release.json` (tag, sysupgrade image with SHA256 and size, the last 20 releases with their changes and upgrade method `auto`/`reset`/`manual` from the workflow inputs, carried over from the previous `release.json`) |
-| `README.ru.md`, `UPGRADING.md`, `RESEARCH.md` | Documentation |
+| `README.ru.md`, `BUILDING.md`, `BUILDING.ru.md`, `UPGRADING.md`, `RESEARCH.md` | Documentation |
 
 **Edits of upstream and remittor files** (possible conflict points):
 
@@ -198,7 +198,7 @@ Then run the checks from [Appendix C](#appendix-c-on-device-verification), in pa
 ### 2.9. Update the documentation and publish
 
 ```bash
-grep -rn "$OLD" README.md README.ru.md UPGRADING.md   # version numbers, vermagic hash (README section 7)
+grep -rn "$OLD" README.md README.ru.md BUILDING.md BUILDING.ru.md UPGRADING.md   # version numbers, vermagic hash (README section 7)
 # edit, then:
 git add -A && git commit -m "Update to OpenWrt $NEW"
 git push origin xq-25.12
@@ -294,7 +294,7 @@ A new series can change any of the underlying facts. Check each item before buil
 2. Build with `./build.sh`, check kernel parity ([Appendix B](#appendix-b-kernel-configuration-parity-check)).
 3. Flash. When moving between series, start with `sysupgrade -T` and read the compatibility message; a clean flash (`sysupgrade -n`) is the safe default for a major upgrade. Keep a configuration backup (`sysupgrade -b`).
 4. Run the full [Appendix C](#appendix-c-on-device-verification) checklist.
-5. Update the README files (versions, branch name in `git clone -b xq-25.12 …`, vermagic hash, any changed facts) and this document.
+5. Update the README and BUILDING files (versions, the branch name in `git clone -b xq-25.12 …` in BUILDING, vermagic hash, any changed facts) and this document.
 6. Publish the new branch and a release tag:
 
 ```bash
