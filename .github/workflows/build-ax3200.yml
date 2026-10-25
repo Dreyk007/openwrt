@@ -13,6 +13,26 @@ on:
         description: 'Publish as a pre-release'
         type: boolean
         default: false
+      upgrade:
+        description: 'Update from LuCI (System -> AX3200 / AX6S build updates): auto; reset (only without keeping the settings); manual (no update button)'
+        type: choice
+        options:
+          - auto
+          - reset
+          - manual
+        default: auto
+      upgrade_note_en:
+        description: 'For reset/manual: why, in English (shown on the router)'
+        required: false
+        default: ''
+      upgrade_note_ru:
+        description: 'For reset/manual: why, in Russian (shown on the router)'
+        required: false
+        default: ''
+      upgrade_url:
+        description: 'For reset/manual: link to the instructions (optional)'
+        required: false
+        default: ''
       runner:
         description: 'Runner image'
         type: choice
@@ -68,6 +88,37 @@ jobs:
         with:
           fetch-depth: 0
 
+      # Before the build: the image records its release for the update check on the router
+      - name: Choose release tag
+        id: tag
+        env:
+          INPUT_TAG: ${{ inputs.release_tag }}
+          UPGRADE: ${{ inputs.upgrade }}
+          NOTE_EN: ${{ inputs.upgrade_note_en }}
+          NOTE_RU: ${{ inputs.upgrade_note_ru }}
+        run: |
+          ver=$(grep -oP '(?<=,\$\(VERSION_NUMBER\),)[^)]*' include/version.mk)
+          if [ -n "$INPUT_TAG" ]; then
+            tag=$INPUT_TAG
+          else
+            last=$(git tag -l "v${ver}-ax3200-r*" | sed -n "s/^v${ver}-ax3200-r\([0-9][0-9]*\)$/\1/p" | sort -n | tail -1)
+            tag="v${ver}-ax3200-r$(( ${last:-0} + 1 ))"
+          fi
+          if ! [[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-ax3200-r[0-9]+$ ]]; then
+            echo "::error::Tag $tag does not look like v<OpenWrt version>-ax3200-r<number>, which the update check on the router expects"
+            exit 1
+          fi
+          if git rev-parse -q --verify "refs/tags/$tag" > /dev/null; then
+            echo "::error::Tag $tag already exists"
+            exit 1
+          fi
+          if [ "$UPGRADE" != auto ] && { [ -z "${NOTE_EN// }" ] || [ -z "${NOTE_RU// }" ]; }; then
+            echo "::error::upgrade=$UPGRADE needs both notes (upgrade_note_en, upgrade_note_ru)"
+            exit 1
+          fi
+          echo "ver=$ver" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
       - name: Restore source downloads
         uses: actions/cache@v6
         with:
@@ -76,6 +127,8 @@ jobs:
           restore-keys: dl-
 
       - name: Build firmware
+        env:
+          AX3200_RELEASE: ${{ steps.tag.outputs.tag }}
         run: ./build.sh --install-deps 2>&1 | tee build.log
 
       - name: Upload build log
@@ -89,20 +142,14 @@ jobs:
       - name: Prepare release
         id: release
         env:
-          INPUT_TAG: ${{ inputs.release_tag }}
+          GH_TOKEN: ${{ github.token }}
+          ver: ${{ steps.tag.outputs.ver }}
+          tag: ${{ steps.tag.outputs.tag }}
+          UPGRADE: ${{ inputs.upgrade }}
+          NOTE_EN: ${{ inputs.upgrade_note_en }}
+          NOTE_RU: ${{ inputs.upgrade_note_ru }}
+          UPGRADE_URL: ${{ inputs.upgrade_url }}
         run: |
-          ver=$(grep -oP '(?<=,\$\(VERSION_NUMBER\),)[^)]*' include/version.mk)
-          if [ -n "$INPUT_TAG" ]; then
-            tag=$INPUT_TAG
-          else
-            last=$(git tag -l "v${ver}-ax3200-r*" | sed -n "s/^v${ver}-ax3200-r\([0-9][0-9]*\)$/\1/p" | sort -n | tail -1)
-            tag="v${ver}-ax3200-r$(( ${last:-0} + 1 ))"
-          fi
-          if git rev-parse -q --verify "refs/tags/$tag" > /dev/null; then
-            echo "::error::Tag $tag already exists"
-            exit 1
-          fi
-
           # Same files as build.sh leaves in the target directory (without packages/)
           mkdir -p release
           find "$TARGET_DIR" -maxdepth 1 -type f -exec cp {} release/ \;
@@ -110,11 +157,20 @@ jobs:
 
           url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY"
           prefix=openwrt-mediatek-mt7622-xiaomi_redmi-router-ax6s
+          prev=$(git describe --tags --abbrev=0 --match 'v*-ax3200-r*' HEAD 2> /dev/null || true)
+
+          # release.json for the update check on the router; it carries over the releases
+          # listed in the previous one (releases before r10 have none)
+          if [ -n "$prev" ]; then
+            gh release download "$prev" --repo "$GITHUB_REPOSITORY" --pattern release.json --output prev-release.json 2> /dev/null || true
+          fi
+          python3 .github/scripts/ax3200-release-json.py --tag "$tag" --commit "$GITHUB_SHA" --repo-url "$url" \
+            --image "release/$prefix-squashfs-sysupgrade.itb" --prev-tag "$prev" --prev-json prev-release.json \
+            --upgrade "$UPGRADE" --note-en "$NOTE_EN" --note-ru "$NOTE_RU" --upgrade-url "$UPGRADE_URL" > release/release.json
           # GitHub lists the assets below the notes, so the notes start with direct links to
           # the two images most people need and keep everything else in collapsed sections.
           link() { echo "[\`…${1#"$prefix"}\`]($url/releases/download/$tag/$1)"; }
           size() { numfmt --to=iec-i --suffix=B --format='%.1f' "$(stat -c %s "release/$1")" | sed 's/[KMG]iB$/ &/'; }
-          prev=$(git describe --tags --abbrev=0 --match 'v*-ax3200-r*' HEAD 2> /dev/null || true)
           {
             echo "Optimized OpenWrt **${ver}** for **Xiaomi AX3200 / Redmi AX6S** · [Installation guide]($url/blob/$GITHUB_SHA/README.md#installation) · [Инструкция на русском]($url/blob/$GITHUB_SHA/README.ru.md#установка)"
             echo
@@ -136,6 +192,7 @@ jobs:
             echo "| \`$prefix.manifest\` | Installed packages and their versions |"
             echo "| \`config.buildinfo\`, \`feeds.buildinfo\`, \`version.buildinfo\`, \`profiles.json\` | Build configuration, feed revisions, OpenWrt revision, image metadata |"
             echo "| \`sha256sums\` | SHA256 of all files |"
+            echo "| \`release.json\` | Release information for the firmware update check on the router (*System → AX3200 / AX6S build updates*) |"
             echo
             echo "</details>"
             if [ -n "$prev" ]; then

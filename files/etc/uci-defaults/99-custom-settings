@@ -7,8 +7,8 @@
 # configuration: a marker is stored in /etc/config/ax3200, which sysupgrade
 # keeps together with the rest of /etc/config. This way user changes, e.g.
 # disabling flow offloading in favour of SQM, survive firmware upgrades.
-# Only the collectd include cleanup below runs on every flash; the bridger and packet steering defaults
-# have their own markers.
+# Only the collectd include cleanup and the release name below run on every flash; the bridger
+# and packet steering defaults have their own markers.
 #
 # Wi-Fi radio defaults are set by /etc/uci-defaults/77_wireless. The list of LuCI themes is
 # brought in line with the installed ones on every boot by /etc/init.d/luci-themes.
@@ -26,6 +26,14 @@ if [ "$(uci -q get luci_statistics.collectd.Include)" = "/etc/collectd/conf.d" ]
    [ ! -d /etc/collectd/conf.d ]; then
 	uci -q delete luci_statistics.collectd.Include
 	uci -q commit luci_statistics
+fi
+
+# On every flash: name the release of this build after the OpenWrt version, e.g. in Status ->
+# Overview -> Firmware Version (OPENWRT_RELEASE, which "ubus call system board" reports as the
+# description). The release comes from /etc/ax3200_release; a local build has none.
+. /etc/ax3200_release 2>/dev/null
+if [ -n "${RELEASE:-}" ] && ! grep -q "^OPENWRT_RELEASE=.* ${RELEASE#v*-}\"$" /usr/lib/os-release; then
+	sed -i "s/^OPENWRT_RELEASE=\"\(.*\)\"$/OPENWRT_RELEASE=\"\1 ${RELEASE#v*-}\"/" /usr/lib/os-release
 fi
 
 # bridger is installed but off by default, once per configuration (it came after the other defaults,
