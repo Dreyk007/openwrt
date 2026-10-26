@@ -1,11 +1,12 @@
 #!/usr/bin/env ucode
 // Firmware update check of the Xiaomi AX3200 / Redmi AX6S build: the LuCI page System ->
 // AX3200 / AX6S build updates and the notice on the Overview page. The check and the download
-// run in the background (/usr/libexec/fwupdate); the page polls status.
+// run in the background (/usr/libexec/fwupdate); the page polls status. The user's packages
+// are kept across an update by /usr/libexec/fwupdate-packages.
 
 'use strict';
 
-import { readfile, stat, access, unlink } from 'fs';
+import { readfile, stat, access, unlink, popen } from 'fs';
 import { cursor } from 'uci';
 
 const DIR = '/tmp/fwupdate';
@@ -13,6 +14,7 @@ const IMAGE = DIR + '/firmware.bin';
 const CHECKING = DIR + '/checking';
 // a check or a download that has not finished after this long has died
 const STALE = 900;
+const PACKAGES = '/usr/libexec/fwupdate-packages';
 
 function read_json(file) {
 	const s = readfile(file);
@@ -20,6 +22,21 @@ function read_json(file) {
 		return null;
 	try {
 		return json(s);
+	}
+	catch (e) {
+		return null;
+	}
+}
+
+// the JSON a command prints, or null
+function command_json(cmd) {
+	const p = popen(cmd + ' 2>/dev/null');
+	if (!p)
+		return null;
+	const out = p.read('all');
+	p.close();
+	try {
+		return json(out);
 	}
 	catch (e) {
 		return null;
@@ -75,7 +92,10 @@ function status() {
 			skip: c.get('fwupdate', 'settings', 'skip') || ''
 		},
 		asu: asu,
-		asu_alerts: asu && c.get('attendedsysupgrade', 'client', 'login_check_for_upgrades') != '0'
+		asu_alerts: asu && c.get('attendedsysupgrade', 'client', 'login_check_for_upgrades') != '0',
+		packages: read_json('/etc/fwupdate/restore.json'),
+		// the time of the last boot: whether the restart after a restore has happened yet
+		booted: +(match(readfile('/proc/stat') || '', /\nbtime ([0-9]+)/) || [ 0, 0 ])[1]
 	};
 }
 
@@ -99,7 +119,7 @@ function download() {
 	return { result: 'started' };
 }
 
-function upgrade(keep) {
+function upgrade(keep, packages) {
 	const st = read_json(DIR + '/status.json');
 	const dl = read_json(DIR + '/download.json');
 
@@ -110,6 +130,14 @@ function upgrade(keep) {
 		return { error: 'manual' };
 
 	keep = keep && st.method != 'reset' && dl.allow_backup;
+	// without the settings the list of packages is not kept either
+	if (keep && packages) {
+		if (system([ PACKAGES, 'request', st.latest.tag ]) != 0)
+			return { error: 'packages' };
+	}
+	else {
+		system([ PACKAGES, 'forget' ]);
+	}
 	// sysupgrade does not return: start it after the reply has been sent
 	background('sleep 1; exec /sbin/sysupgrade ' + (keep ? '' : '-n ') + IMAGE);
 	return { result: 'ok', keep: keep };
@@ -141,15 +169,26 @@ function discard() {
 	return { result: 'ok' };
 }
 
+function packages_command(cmd) {
+	return { result: (system([ PACKAGES, cmd ]) == 0) ? 'ok' : 'error' };
+}
+
 const methods = {
 	status: { call: () => status() },
 	check: { call: () => check() },
 	download: { call: () => download() },
 	discard: { call: () => discard() },
 	upgrade: {
-		args: { keep: false },
-		call: (req) => upgrade(req.args.keep ? true : false)
+		args: { keep: false, packages: false },
+		call: (req) => upgrade(req.args.keep ? true : false, req.args.packages ? true : false)
 	},
+	// the packages the user added to or removed from the image
+	packages: { call: () => command_json(PACKAGES + ' list') || { error: 'list' } },
+	// before a settings backup, so that the archive holds the current list
+	packages_save: { call: () => packages_command('save') },
+	packages_retry: { call: () => packages_command('retry') },
+	packages_cancel: { call: () => packages_command('cancel') },
+	packages_dismiss: { call: () => packages_command('dismiss') },
 	skip: {
 		args: { tag: '' },
 		call: (req) => skip(req.args.tag)

@@ -1,0 +1,5 @@
+#!/bin/sh
+# First boot after a flash: the packages kept with "Keep my packages" on the update page are
+# installed again once the router is online (luci-app-fwupdate, /usr/libexec/fwupdate-packages)
+/usr/libexec/fwupdate-packages boot
+exit 0

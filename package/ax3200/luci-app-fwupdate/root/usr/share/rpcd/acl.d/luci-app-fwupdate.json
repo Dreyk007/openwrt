@@ -3,13 +3,13 @@
 		"description": "Grant access to the firmware update check",
 		"read": {
 			"ubus": {
-				"luci.fwupdate": [ "status" ]
+				"luci.fwupdate": [ "status", "packages" ]
 			},
 			"uci": [ "fwupdate" ]
 		},
 		"write": {
 			"ubus": {
-				"luci.fwupdate": [ "check", "download", "discard", "upgrade", "skip", "asu_off" ]
+				"luci.fwupdate": [ "check", "download", "discard", "upgrade", "skip", "asu_off", "packages_save", "packages_retry", "packages_cancel", "packages_dismiss" ]
 			},
 			"uci": [ "fwupdate" ]
 		}

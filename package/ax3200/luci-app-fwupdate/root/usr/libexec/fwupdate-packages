@@ -1,0 +1,631 @@
+#!/usr/bin/ucode
+// The packages a user added to the Xiaomi AX3200 / Redmi AX6S build, installed again after an
+// update made on the page System -> AX3200 / AX6S build updates (luci-app-fwupdate). A
+// sysupgrade that keeps the settings drops every package installed with apk; with "Keep my
+// packages" the router installs them again as soon as it is online after the update.
+//
+//   fwupdate-packages list           print the packages added to or removed from the image
+//   fwupdate-packages save           write that list to /etc/fwupdate/packages.json
+//   fwupdate-packages request <tag>  save the list and ask for the packages after the update
+//                                    to release <tag>
+//   fwupdate-packages forget         drop such a request
+//   fwupdate-packages boot           first boot after a flash (uci-defaults): a request for the
+//                                    release now installed becomes a pending restore
+//   fwupdate-packages pending        exit 0 while a restore waits to run
+//   fwupdate-packages restore        install the saved packages; without a connection try again
+//                                    later until it gets through (run by /etc/init.d/fwupdate)
+//   fwupdate-packages retry | cancel | dismiss | status
+//
+// /etc/fwupdate is kept by sysupgrade (/lib/upgrade/keep.d/luci-app-fwupdate) and is part of
+// every settings backup. An update made another way restores nothing: the request names the
+// release it is for.
+
+'use strict';
+
+import { readfile, writefile, rename, unlink, mkdir, popen, stat, lsdir } from 'fs';
+
+const DIR = '/etc/fwupdate';
+const LIST = DIR + '/packages.json';
+const RESTORE = DIR + '/restore.json';
+const KEYS = DIR + '/keys';
+const REPOS = DIR + '/repos';
+const SNAPSHOT = DIR + '/config-before';
+const WORLD_BEFORE = DIR + '/world.before';
+const WORLD = '/etc/apk/world';
+const ROM = '/rom';
+const DB = '/lib/apk/db/installed';
+const PKG_LISTS = '/lib/apk/packages/';
+// never removed again, even when the user had removed them: the update page itself and what it needs
+const PROTECTED = [ 'luci-app-fwupdate', 'luci-app-tuning', 'base-files', 'kernel', 'apk', 'apk-mbedtls', 'apk-openssl' ];
+// seconds between attempts without a connection, then LATER for good
+const DELAYS = [ 60, 120, 300, 600 ];
+const LATER = 1800;
+const ACTIVE = [ 'pending', 'waiting', 'running' ];
+const APK = 'apk --wait 120 --force-missing-repositories';
+
+function q(s) {
+	return "'" + replace(s, "'", "'\\''") + "'";
+}
+
+function log(msg) {
+	system([ 'logger', '-t', 'fwupdate', 'packages: ' + msg ]);
+}
+
+// [ exit code, output ]
+function run(cmd) {
+	const p = popen(cmd + ' 2>&1');
+	if (!p)
+		return [ 127, '' ];
+	const out = p.read('all') || '';
+	return [ p.close(), out ];
+}
+
+function read_json(file) {
+	const s = readfile(file);
+	if (s == null)
+		return null;
+	try {
+		return json(s);
+	}
+	catch (e) {
+		return null;
+	}
+}
+
+function write_json(file, data) {
+	writefile(file + '.tmp', sprintf('%J', data));
+	rename(file + '.tmp', file);
+}
+
+function release() {
+	const m = match(readfile('/etc/ax3200_release') || '', /(^|\n)RELEASE='([^']*)'/);
+	return m ? m[2] : '';
+}
+
+// one world constraint: [!]name[@tag][<>=~version] or name><hash for a package added from a file
+function parse_entry(line) {
+	const m = match(line, /^(!?)([^@<>=~!]+)(@[^<>=~]+)?(.*)$/);
+	return m ? { entry: line, conflict: m[1] == '!', name: m[2], tag: m[3] || '', rest: m[4] || '' } : null;
+}
+
+function world(file) {
+	return filter(map(split(readfile(file) || '', /\s+/), parse_entry), (e) => e != null);
+}
+
+function names(entries) {
+	const n = {};
+	for (let e in entries)
+		if (!e.conflict)
+			n[e.name] = true;
+	return n;
+}
+
+// installed packages and their versions
+function installed_db() {
+	const db = {};
+	let name;
+	for (let l in split(readfile(DB) || '', '\n')) {
+		if (substr(l, 0, 2) == 'P:')
+			name = substr(l, 2);
+		else if (substr(l, 0, 2) == 'V:' && name)
+			db[name] = substr(l, 2);
+	}
+	return db;
+}
+
+// the names each installed package provides besides its own (dnsmasq-full: dnsmasq)
+function provides_db() {
+	const prov = {};
+	let name;
+	for (let l in split(readfile(DB) || '', '\n')) {
+		if (substr(l, 0, 2) == 'P:')
+			name = substr(l, 2);
+		else if (substr(l, 0, 2) == 'p:' && name)
+			prov[name] = map(split(trim(substr(l, 2)), /\s+/), (x) => split(x, /[<>=~]/)[0]);
+	}
+	return prov;
+}
+
+function package_files(name) {
+	return filter(split(readfile(PKG_LISTS + name + '.list') || '', '\n'), length);
+}
+
+function is_protected(name) {
+	return name in PROTECTED;
+}
+
+function service_enabled(svc) {
+	return system([ '/etc/init.d/' + svc, 'enabled' ]) == 0;
+}
+
+// what the user changed against the image: packages added (with how they came) and removed,
+// and the services of added packages that the user switched off
+function compute() {
+	const rom = world(ROM + WORLD), cur = world(WORLD), db = installed_db();
+	const in_rom = names(rom), in_cur = names(cur);
+	const rom_entries = map(rom, (e) => e.entry);
+	const added = [], removed = [], disabled = [];
+
+	for (let e in cur) {
+		if (e.conflict ? (e.entry in rom_entries) : in_rom[e.name])
+			continue;
+		push(added, {
+			name: e.name, entry: e.entry, conflict: e.conflict, tag: e.tag, version: db[e.name],
+			source: (index(e.rest, '><') == 0) ? 'file' : (e.tag ? 'tag' : 'repo')
+		});
+		for (let f in package_files(e.name)) {
+			const m = match(f, /^\/etc\/init\.d\/([^\/]+)$/);
+			if (m && !service_enabled(m[1]))
+				push(disabled, m[1]);
+		}
+	}
+	for (let e in rom)
+		if (!e.conflict && !in_cur[e.name] && !is_protected(e.name))
+			push(removed, e.name);
+
+	return { added, removed, disabled };
+}
+
+// the files of dir that the image does not have or has with other content, copied to keep
+function save_extra(dir, keep, skip) {
+	const saved = [];
+	mkdir(keep);
+	for (let f in lsdir(keep) || [])
+		unlink(keep + '/' + f);
+	for (let f in lsdir(dir) || []) {
+		const s = readfile(dir + '/' + f);
+		if (s == null || (f in skip) || s == readfile(ROM + dir + '/' + f))
+			continue;
+		writefile(keep + '/' + f, s);
+		push(saved, f);
+	}
+	return saved;
+}
+
+// back unless the file is there with content of its own (sysupgrade keeps some of them)
+function restore_extra(keep, dir, files) {
+	for (let f in files || []) {
+		const s = readfile(keep + '/' + f), cur = readfile(dir + '/' + f);
+		if (s != null && (cur == null || cur == readfile(ROM + dir + '/' + f)))
+			writefile(dir + '/' + f, s);
+	}
+}
+
+function save() {
+	const l = compute();
+	mkdir(DIR);
+	l.keys = save_extra('/etc/apk/keys', KEYS, []);
+	// the official repositories come with the new image and its version
+	l.repos = save_extra('/etc/apk/repositories.d', REPOS, [ 'distfeeds.list' ]);
+	l.saved = time();
+	l.release = release();
+	write_json(LIST, l);
+	return l;
+}
+
+function state() {
+	return read_json(RESTORE);
+}
+
+function set_state(st) {
+	mkdir(DIR);
+	write_json(RESTORE, st);
+}
+
+function boot() {
+	const st = state();
+	if (!st)
+		return 0;
+	if (st.state == 'requested' && st.target && st.target == release() && read_json(LIST)) {
+		set_state({ state: 'pending', target: st.target, since: time(), attempts: 0 });
+		log('the packages kept for ' + st.target + ' are installed once the router is online');
+		return 0;
+	}
+	// any other flash: an update to another release (e.g. after the requested one failed), or
+	// one made another way, which leaves the packages alone; an earlier result is out of date
+	unlink(RESTORE);
+	unlink(WORLD_BEFORE);
+	system('rm -rf ' + SNAPSHOT);
+	return 0;
+}
+
+// the error part of apk's output
+function apk_error(out) {
+	const lines = filter(split(trim(out), '\n'), length);
+	let from = (length(lines) > 6) ? length(lines) - 6 : 0;
+	for (let i = 0; i < length(lines); i++) {
+		if (match(lines[i], /ERROR/)) {
+			from = i;
+			break;
+		}
+	}
+	return substr(join('\n', slice(lines, from, from + 8)), 0, 600);
+}
+
+function apk_reason(out) {
+	if (match(out, /no such package/))
+		return 'not_found';
+	if (match(out, /conflicts:|breaks:/))
+		return 'conflict';
+	if (match(out, /No space left|ENOSPC/))
+		return 'space';
+	if (match(out, /UNTRUSTED|signature/))
+		return 'untrusted';
+	if (match(out, /network|DNS|timed out|Connection refused|unreachable/i))
+		return 'network';
+	return 'error';
+}
+
+function wanted(a) {
+	return a.conflict ? a.entry : a.name + a.tag;
+}
+
+// the world of the new image without the removals and with the additions
+function target_world(cur, removes, adds) {
+	const lines = [];
+	for (let e in cur)
+		if (e.conflict || !(e.name in removes))
+			push(lines, e.entry);
+	for (let a in adds)
+		if (!(wanted(a) in lines))
+			push(lines, wanted(a));
+	return join('\n', lines) + '\n';
+}
+
+// The world this run last wrote. apk run by the user at the same time (in a shell or LuCI's
+// package manager) may change the world between the steps of a restore: then the restore
+// leaves that world alone, stops, and tries again later from what is installed by then.
+const WORLD_CHANGED = 'the list of installed packages was changed meanwhile';
+let world_expected = null;
+
+function same_world(a, b) {
+	const lines = (s) => join('\n', sort(filter(split(s || '', /\s+/), length)));
+	return lines(a) == lines(b);
+}
+
+function put_world(content) {
+	if (world_expected != null && !same_world(readfile(WORLD), world_expected))
+		die(WORLD_CHANGED);
+	writefile(WORLD, content);
+	world_expected = content;
+}
+
+function simulate(cur, removes, adds) {
+	put_world(target_world(cur, removes, adds));
+	return run(APK + ' add --simulate');
+}
+
+// back to the world of the image and to its packages, after a failed transaction, unless
+// someone else changed the world meanwhile
+function revert(before) {
+	if (world_expected != null && !same_world(readfile(WORLD), world_expected))
+		return;
+	writefile(WORLD, before);
+	world_expected = before;
+	run(APK + ' add');
+}
+
+function snapshot() {
+	system('rm -rf ' + SNAPSHOT + ' && mkdir -p ' + SNAPSHOT + ' && cp -a /etc/config/. ' + SNAPSHOT + '/');
+}
+
+function changed_configs() {
+	const changed = [];
+	for (let f in lsdir(SNAPSHOT) || [])
+		if (readfile(SNAPSHOT + '/' + f) != readfile('/etc/config/' + f))
+			push(changed, f);
+	return changed;
+}
+
+// the removals and additions that apk accepts; what does not fit goes to res.failed
+function fit(cur, removes, adds, res) {
+	if (simulate(cur, removes, adds)[0] == 0)
+		return [ removes, adds ];
+
+	// first the packages that install on their own, then those that need one of the user's
+	// removals: a replacement such as another wpad variant
+	const ok_adds = [], ok_removes = [], need = [];
+	for (let a in adds) {
+		const t = simulate(cur, [], [ ...ok_adds, a ]);
+		if (t[0] == 0)
+			push(ok_adds, a);
+		else
+			push(need, [ a, t[1] ]);
+	}
+	for (let x in need) {
+		let found = null;
+		for (let n in removes) {
+			if (simulate(cur, [ ...ok_removes, n ], [ ...ok_adds, x[0] ])[0] == 0) {
+				found = n;
+				break;
+			}
+		}
+		if (found == null) {
+			push(res.failed, { name: x[0].name, action: 'install', reason: apk_reason(x[1]), message: apk_error(x[1]) });
+			continue;
+		}
+		push(ok_adds, x[0]);
+		if (!(found in ok_removes))
+			push(ok_removes, found);
+	}
+	// the other removals are the user's own choice, but one of them may belong to a replacement
+	// that failed: then the package of the image stays
+	for (let n in removes) {
+		if (n in ok_removes)
+			continue;
+		const t = length(res.failed) ? null : simulate(cur, [ ...ok_removes, n ], ok_adds);
+		if (t && t[0] == 0)
+			push(ok_removes, n);
+		else
+			push(res.failed, { name: n, action: 'remove', reason: t ? apk_reason(t[1]) : 'skipped', message: t ? apk_error(t[1]) : '' });
+	}
+	return [ ok_removes, ok_adds ];
+}
+
+// one attempt; 2 means no connection, so that the caller tries again later
+function restore_once() {
+	const st = state() || {};
+	const l = read_json(LIST);
+
+	// the state stays pending or waiting while the connection is checked: until the packages
+	// are being installed, stopping is harmless
+	st.attempts = (st.attempts || 0) + 1;
+	st.tried = time();
+	st.phase = 'connecting';
+	st.next = null;
+	set_state(st);
+
+	if (!l) {
+		st.state = 'failed';
+		st.phase = null;
+		st.error = 'no list of packages';
+		set_state(st);
+		return 1;
+	}
+
+	// a run cut short by a power loss left its world behind
+	const prev = readfile(WORLD_BEFORE);
+	world_expected = null;
+	if (prev != null)
+		revert(prev);
+
+	restore_extra(KEYS, '/etc/apk/keys', l.keys);
+	restore_extra(REPOS, '/etc/apk/repositories.d', l.repos);
+
+	const u = run('apk update --timeout 20');
+	st.phase = null;
+	if (!match(u[1], /OK: [1-9][0-9]* distinct packages available/)) {
+		st.state = 'waiting';
+		st.error = apk_error(u[1]);
+		set_state(st);
+		log('no connection to the package repositories, trying again later');
+		return 2;
+	}
+	st.state = 'running';
+	set_state(st);
+
+	const db = installed_db(), before = readfile(WORLD), cur = world(WORLD), in_cur = names(cur);
+	const res = { installed: [], deps: 0, removed: [], replaced: [], disabled: [], failed: [], manual: [], changed: [], wanted: [] };
+	const removes = filter(l.removed, (n) => in_cur[n] && db[n] && !is_protected(n));
+	const adds = [];
+
+	for (let a in l.added) {
+		if (a.source == 'file') {
+			if (!db[a.name])
+				push(res.manual, { name: a.name, version: a.version });
+		}
+		else if (a.conflict || !db[a.name] || !in_cur[a.name])
+			push(adds, a);
+	}
+
+	writefile(WORLD_BEFORE, before);
+	world_expected = before;
+	try {
+		const plan = fit(cur, removes, adds, res);
+		if (length(plan[0]) || length(plan[1])) {
+			put_world(target_world(cur, plan[0], plan[1]));
+			snapshot();
+			const t = run(APK + ' add');
+			if (t[0] != 0) {
+				revert(before);
+				unlink(WORLD_BEFORE);
+				const reason = apk_reason(t[1]);
+				st.state = (reason == 'network') ? 'waiting' : 'failed';
+				st.error = apk_error(t[1]);
+				set_state(st);
+				log('installing the packages failed: ' + replace(st.error, '\n', ' '));
+				return (reason == 'network') ? 2 : 1;
+			}
+			// an apk of the user that ran just before this one may have replaced the world
+			if (!same_world(readfile(WORLD), world_expected))
+				die(WORLD_CHANGED);
+		}
+		else {
+			put_world(before);
+		}
+		for (let a in plan[1])
+			push(res.wanted, a.name);
+	}
+	catch (e) {
+		const msg = e.message || ('' + e);
+		unlink(WORLD_BEFORE);
+		if (msg == WORLD_CHANGED) {
+			// what the user installed or removed stays; the next attempt starts from it
+			st.state = 'waiting';
+			st.error = msg;
+			set_state(st);
+			log(msg + ', trying again later');
+			return 2;
+		}
+		revert(before);
+		st.state = 'failed';
+		st.error = msg;
+		set_state(st);
+		log('installing the packages failed: ' + st.error);
+		return 1;
+	}
+	unlink(WORLD_BEFORE);
+
+	const now = installed_db();
+	for (let n in keys(now)) {
+		if (db[n])
+			continue;
+		if (n in res.wanted)
+			push(res.installed, { name: n, version: now[n] });
+		else
+			res.deps++;
+	}
+	// a package of the image that went because a new one provides it was replaced, not removed
+	const prov = provides_db();
+	for (let n in keys(db)) {
+		if (now[n])
+			continue;
+		let by = null;
+		if (!(n in l.removed))
+			for (let i in res.installed)
+				if (n in (prov[i.name] || []))
+					by = i.name;
+		if (by)
+			push(res.replaced, { name: n, by: by });
+		else
+			push(res.removed, n);
+	}
+	delete res.wanted;
+
+	// installing a package enables and starts its service: switch off again what the user had off
+	for (let svc in l.disabled || []) {
+		if (stat('/etc/init.d/' + svc)) {
+			system([ '/etc/init.d/' + svc, 'stop' ]);
+			system([ '/etc/init.d/' + svc, 'disable' ]);
+			push(res.disabled, svc);
+		}
+	}
+	res.changed = changed_configs();
+	// the earlier versions are only worth keeping when a package changed one
+	if (!length(res.changed))
+		system('rm -rf ' + SNAPSHOT);
+	system('rm -f /tmp/luci-indexcache*; rm -rf /tmp/luci-modulecache');
+
+	if (!length(res.failed) && !length(res.manual))
+		st.state = 'done';
+	else if (length(res.failed) && !length(res.installed) && !length(res.removed))
+		st.state = 'failed';
+	else
+		st.state = 'partial';
+	st.error = null;
+	st.result = res;
+	st.finished = time();
+	// the router restarts after any change of packages: their services, network protocols
+	// (netifd only reads those when it starts) and firewall rules then start as after a boot
+	const reboot = length(res.installed) || res.deps || length(res.removed) || length(res.replaced);
+	st.reboot = !!reboot;
+	set_state(st);
+	log(sprintf('installed %d, removed %d, not installed %d, to install by hand %d',
+		length(res.installed), length(res.removed), length(res.failed), length(res.manual)));
+
+	if (reboot) {
+		log('restarting the router to start the installed packages');
+		system('(sleep 10; reboot) </dev/null >/dev/null 2>&1 &');
+	}
+	return 0;
+}
+
+// the time of the next attempt, for the page, then the wait for it
+function wait_until(delay) {
+	const st = state();
+	if (st && (st.state in ACTIVE)) {
+		st.next = time() + delay;
+		set_state(st);
+	}
+	sleep(delay * 1000);
+}
+
+function restore() {
+	// right after a boot the connection and the encrypted DNS need about half a minute
+	const up = +split(readfile('/proc/uptime') || '0', ' ')[0];
+	if (up < 90)
+		wait_until(int(90 - up));
+
+	for (let n = 0; ; n++) {
+		const st = state();
+		if (!st || !(st.state in ACTIVE))
+			return 0;
+		if (restore_once() != 2)
+			return 0;
+		wait_until(n < length(DELAYS) ? DELAYS[n] : LATER);
+	}
+}
+
+function restart_service() {
+	system('/etc/init.d/fwupdate restart >/dev/null 2>&1');
+}
+
+function retry() {
+	if (!read_json(LIST))
+		return 1;
+	const st = state() || {};
+	if (st.state == 'running')
+		return 0;
+	set_state({ state: 'pending', target: st.target || release(), since: time(), attempts: 0, result: st.result });
+	restart_service();
+	return 0;
+}
+
+function cancel() {
+	const st = state();
+	if (!st || st.state == 'running')
+		return 1;
+	if (st.state in [ 'pending', 'waiting' ]) {
+		st.state = 'cancelled';
+		set_state(st);
+		restart_service();
+	}
+	return 0;
+}
+
+function dismiss() {
+	const st = state();
+	if (st && (st.state in ACTIVE))
+		return 1;
+	unlink(RESTORE);
+	unlink(WORLD_BEFORE);
+	system('rm -rf ' + SNAPSHOT);
+	return 0;
+}
+
+switch (ARGV[0]) {
+case 'list':
+	print(sprintf('%J\n', compute()));
+	exit(0);
+case 'save':
+	print(sprintf('%J\n', save()));
+	exit(0);
+case 'request':
+	if (!match(ARGV[1] || '', /^v[0-9.]+-ax3200-r[0-9]+$/))
+		exit(1);
+	save();
+	set_state({ state: 'requested', target: ARGV[1], requested: time() });
+	exit(0);
+case 'forget':
+	if ((state() || {}).state == 'requested')
+		unlink(RESTORE);
+	exit(0);
+case 'boot':
+	exit(boot());
+case 'pending':
+	exit(((state() || {}).state in ACTIVE) ? 0 : 1);
+case 'restore':
+	exit(restore());
+case 'retry':
+	exit(retry());
+case 'cancel':
+	exit(cancel());
+case 'dismiss':
+	exit(dismiss());
+case 'status':
+	print(sprintf('%J\n', state()));
+	exit(0);
+default:
+	warn('usage: fwupdate-packages list|save|request <tag>|forget|boot|pending|restore|retry|cancel|dismiss|status\n');
+	exit(1);
+}

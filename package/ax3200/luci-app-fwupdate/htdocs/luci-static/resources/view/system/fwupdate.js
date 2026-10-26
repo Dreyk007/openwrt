@@ -9,9 +9,14 @@
 const callStatus = rpc.declare({ object: 'luci.fwupdate', method: 'status' });
 const callCheck = rpc.declare({ object: 'luci.fwupdate', method: 'check' });
 const callDownload = rpc.declare({ object: 'luci.fwupdate', method: 'download' });
-const callUpgrade = rpc.declare({ object: 'luci.fwupdate', method: 'upgrade', params: [ 'keep' ] });
+const callUpgrade = rpc.declare({ object: 'luci.fwupdate', method: 'upgrade', params: [ 'keep', 'packages' ] });
 const callSkip = rpc.declare({ object: 'luci.fwupdate', method: 'skip', params: [ 'tag' ] });
 const callAsuOff = rpc.declare({ object: 'luci.fwupdate', method: 'asu_off' });
+const callPackages = rpc.declare({ object: 'luci.fwupdate', method: 'packages' });
+const callPackagesSave = rpc.declare({ object: 'luci.fwupdate', method: 'packages_save' });
+const callPackagesRetry = rpc.declare({ object: 'luci.fwupdate', method: 'packages_retry' });
+const callPackagesCancel = rpc.declare({ object: 'luci.fwupdate', method: 'packages_cancel' });
+const callPackagesDismiss = rpc.declare({ object: 'luci.fwupdate', method: 'packages_dismiss' });
 
 /* Notes in release.json come in English and Russian; LuCI sets the page language on <html> */
 function noteText(r) {
@@ -48,6 +53,12 @@ function fmtTime(sec) {
 	return fmtDate(sec) + ', ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
 }
 
+/* "15:27", for a time later today */
+function fmtClock(sec) {
+	const d = new Date(sec * 1000);
+	return pad(d.getHours()) + ':' + pad(d.getMinutes());
+}
+
 function mb(bytes) {
 	return (bytes / 1048576).toFixed(1);
 }
@@ -62,6 +73,59 @@ function checkError(e) {
 	if (e == 'http')
 		return _('GitHub returned an error');
 	return e;
+}
+
+function names(list) {
+	return list.map(function(p) { return (typeof p == 'string') ? p : p.name; }).join(', ');
+}
+
+/* after installing the packages the router restarts once, so that they start as after a boot */
+function rebootNote() {
+	return E('p', {}, E('strong', _('After installing your packages the router restarts once.')));
+}
+
+/* a restore that has just ended and restarts the router in a moment */
+function rebootPending(d) {
+	const pk = d && d.packages;
+	return !!(pk && pk.reboot && (pk.state == 'done' || pk.state == 'partial') && d.booted && pk.finished >= d.booted);
+}
+
+/* a list of packages: on one line while it is short, folded with its count when it is long */
+const SHORT_LIST = 6;
+
+function packageList(label, list, extra) {
+	const text = names(list) + (extra ? ' ' + extra : '');
+	if (list.length <= SHORT_LIST)
+		return E('p', label + ': ' + text);
+	return E('details', { 'style': 'margin:.4em 0' }, [
+		E('summary', { 'style': 'cursor:pointer' }, label + ' (' + list.length + ')'),
+		E('p', { 'style': 'margin:.3em 0 0 1.2em' }, text)
+	]);
+}
+
+/* packages with the reason why they did not work out, folded the same way */
+function reasonList(label, list) {
+	const items = E('ul', { 'style': LIST_STYLE }, list.map(function(f) {
+		return E('li', f.name + ' — ' + packageReason(f));
+	}));
+	if (list.length <= SHORT_LIST)
+		return E('div', {}, [ E('p', label + ':'), items ]);
+	return E('details', { 'style': 'margin:.4em 0' }, [
+		E('summary', { 'style': 'cursor:pointer' }, label + ' (' + list.length + ')'),
+		items
+	]);
+}
+
+function packageReason(f) {
+	switch (f.reason) {
+	case 'not_found': return _('not in the package repositories');
+	case 'conflict': return _('conflicts with the firmware');
+	case 'space': return _('not enough space');
+	case 'untrusted': return _('the key of its repository is missing');
+	case 'network': return _('no connection');
+	case 'skipped': return _('kept, because not every package could be installed');
+	default: return (f.action == 'remove') ? _('could not be removed') : _('could not be installed');
+	}
 }
 
 function downloadError(dl) {
@@ -81,12 +145,15 @@ function downloadError(dl) {
 
 return view.extend({
 	load: function() {
-		return callStatus();
+		return Promise.all([ callStatus(), L.resolveDefault(callPackages(), null) ]);
 	},
 
 	render: function(data) {
-		this.data = data;
+		this.data = data[0];
+		/* the packages the user added to or removed from the image */
+		this.pkgs = (data[1] && data[1].added) ? data[1] : { added: [], removed: [] };
 		this.keep = true;
+		this.keepPackages = true;
 
 		const m = new form.Map('fwupdate');
 		const s = m.section(form.NamedSection, 'settings', 'settings', _('Settings'));
@@ -116,6 +183,7 @@ return view.extend({
 					_('New releases of this build are published on GitHub. The router looks for them and can install them from this page.')),
 				E('div', { 'id': 'fwupdate-asu' }),
 				E('div', { 'class': 'cbi-section' }, [ E('h3', _('Installed firmware')), E('div', { 'id': 'fwupdate-installed' }) ]),
+				E('div', { 'class': 'cbi-section', 'id': 'fwupdate-packages' }),
 				E('div', { 'class': 'cbi-section', 'id': 'fwupdate-release' }),
 				mapNode
 			]);
@@ -130,9 +198,27 @@ return view.extend({
 	},
 
 	refresh: function() {
+		/* like after flashing: wait for the router and load the page again */
+		if (rebootPending(this.data) && !this.rebootShown) {
+			this.rebootShown = true;
+			ui.showModal(_('Restarting the router'), [
+				E('p', { 'class': 'spinning' }, E('strong', _('Your packages are installed. The router restarts now.')))
+			]);
+			ui.awaitReconnect(window.location.host);
+		}
 		this.renderAsu();
 		this.renderInstalled();
+		this.renderPackages();
 		this.renderRelease();
+	},
+
+	/* the number of the user's package changes, and those that come back without the user */
+	packageCount: function() {
+		return this.pkgs.added.length + this.pkgs.removed.length;
+	},
+
+	manualPackages: function() {
+		return this.pkgs.added.filter(function(p) { return p.source == 'file'; });
 	},
 
 	/* redraw only on a change, so that a button is not replaced under the pointer */
@@ -248,12 +334,25 @@ return view.extend({
 			'type': 'checkbox',
 			'checked': (keepAllowed && this.keep) ? '' : null,
 			'disabled': keepAllowed ? null : '',
-			'change': L.bind(function(ev) { this.keep = ev.target.checked; }, this)
+			'change': L.bind(function(ev) { this.keep = ev.target.checked; this.renderRelease(); }, this)
+		});
+
+		/* without the settings the list of packages is not kept either */
+		const count = this.packageCount();
+		const pkgAllowed = keepAllowed && this.keep;
+		const keepPkgs = E('input', {
+			'type': 'checkbox',
+			'checked': (pkgAllowed && this.keepPackages) ? '' : null,
+			'disabled': pkgAllowed ? null : '',
+			'change': L.bind(function(ev) { this.keepPackages = ev.target.checked; this.renderRelease(); }, this)
 		});
 
 		/* a row of its own: the themes align .cbi-page-actions differently */
 		items.push(E('div', { 'style': 'display:flex; flex-wrap:wrap; align-items:center; gap:.6em 1em; margin:1em 0' }, [
 			(st.method != 'manual') ? E('label', {}, [ keep, ' ', _('Keep settings') ]) : '',
+			(st.method != 'manual' && count) ? E('label', {
+				'title': pkgAllowed ? null : _('Without the settings the list of packages is not kept either.')
+			}, [ keepPkgs, ' ', _('Keep my packages (%d)').format(count) ]) : '',
 			E('button', {
 				'class': 'btn cbi-button cbi-button-action',
 				'disabled': (st.method == 'manual') ? '' : null,
@@ -264,6 +363,131 @@ return view.extend({
 				'click': ui.createHandlerFn(this, 'handleSkip', skipped ? '' : latest.tag)
 			}, skipped ? _('Show this release again') : _('Skip this release')) : ''
 		]));
+
+		/* only while the packages are kept */
+		if (st.method != 'manual' && count && pkgAllowed && this.keepPackages)
+			items.push(this.packageDetails());
+
+		dom.content(node, items);
+	},
+
+	/* what "Keep my packages" brings back, folded */
+	packageDetails: function() {
+		const again = this.pkgs.added.filter(function(p) { return p.source != 'file'; });
+		const manual = this.manualPackages();
+
+		return E('details', { 'style': 'margin:-.4em 0 1em' }, [
+			E('summary', { 'style': 'cursor:pointer' }, _('What is kept')),
+			E('div', { 'style': 'margin-top:.4em' }, [
+				again.length ? packageList(_('Installed again after the update'), again) : '',
+				this.pkgs.removed.length ? packageList(_('Firmware packages you removed will be removed again'), this.pkgs.removed) : '',
+				manual.length ? packageList(_('Installed not from a repository (from a file or by a script), to be installed again by hand'), manual) : '',
+				(again.length || this.pkgs.removed.length) ? rebootNote() : ''
+			])
+		]);
+	},
+
+	renderPackages: function() {
+		const pk = this.data.packages;
+		const node = this.node('fwupdate-packages');
+
+		/* a request turns into a restore after the update */
+		if (!pk || pk.state == 'requested') {
+			dom.content(node, null);
+			node.style.display = 'none';
+			return;
+		}
+		node.style.display = '';
+
+		const res = pk.result;
+		const items = [ E('h3', _('Your packages after the update')) ];
+		const button = L.bind(function(title, fn, action) {
+			return E('button', {
+				'class': 'btn cbi-button' + (action ? ' cbi-button-action' : ''),
+				'click': ui.createHandlerFn(this, function() { return fn().then(L.bind(this.pollStatus, this)); })
+			}, title);
+		}, this);
+		let buttons = [];
+
+		switch (pk.state) {
+		case 'pending':
+			if (pk.phase == 'connecting')
+				items.push(E('p', { 'class': 'spinning' }, _('Checking the connection to the package repositories…')));
+			else if (pk.next)
+				items.push(E('p', _('The router starts installing your packages at about %s, once the internet and DNS work after the boot.').format(fmtClock(pk.next))));
+			else
+				items.push(E('p', { 'class': 'spinning' }, _('Your packages are installed in a moment.')));
+			items.push(rebootNote());
+			buttons = [ button(_('Cancel'), callPackagesCancel) ];
+			break;
+		case 'running':
+			items.push(E('p', { 'class': 'spinning' }, _('Installing your packages…')), rebootNote());
+			break;
+		case 'waiting':
+			items.push((pk.phase == 'connecting')
+				? E('p', { 'class': 'spinning' }, _('Checking the connection to the package repositories…'))
+				: E('p', _('No connection to the package repositories: the router installs your packages as soon as it is online.')), rebootNote());
+			if (pk.tried)
+				items.push(E('p', _('Attempts: %d, the last at %s.').format(pk.attempts || 0, fmtTime(pk.tried)) +
+					((pk.next && pk.phase != 'connecting') ? ' ' + _('The next one at about %s.').format(fmtClock(pk.next)) : '')));
+			buttons = [ button(_('Try again now'), callPackagesRetry, true), button(_('Cancel'), callPackagesCancel) ];
+			break;
+		case 'cancelled':
+			items.push(E('p', _('You cancelled installing your packages.')));
+			buttons = [ button(_('Try again'), callPackagesRetry, true), button(_('Hide'), callPackagesDismiss) ];
+			break;
+		default: {
+			const failed = (res && res.failed) || [], manual = (res && res.manual) || [];
+			items.push(E('p', {}, E('strong', (pk.state == 'failed') ? _('Your packages could not be installed.')
+				: failed.length ? _('Some of your packages could not be installed.')
+				: manual.length ? _('Your packages are installed again, except those installed not from a repository.')
+				: _('Your packages are installed again.'))));
+			/* trying again only helps with what apk refused, not with packages from a file */
+			buttons = (failed.length || !res) ? [ button(_('Try again'), callPackagesRetry, true), button(_('Hide'), callPackagesDismiss) ]
+				: [ button(_('Hide'), callPackagesDismiss) ];
+		}
+		}
+
+		if (res && pk.state != 'running') {
+			const failed = res.failed || [];
+			const installs = failed.filter(function(f) { return f.action != 'remove'; });
+			const removals = failed.filter(function(f) { return f.action == 'remove'; });
+
+			if (res.installed && res.installed.length)
+				items.push(packageList(_('Installed again'), res.installed, res.deps ? _('(and %d packages they need)').format(res.deps) : ''));
+			if (res.replaced && res.replaced.length)
+				items.push(packageList(_('Replaced'), res.replaced.map(function(r) { return r.name + ' → ' + r.by; })));
+			if (res.removed && res.removed.length)
+				items.push(packageList(_('Firmware packages you removed are removed again'), res.removed));
+			if (res.disabled && res.disabled.length)
+				items.push(packageList(_('Services switched off again'), res.disabled));
+			if (installs.length)
+				items.push(reasonList(_('Not installed'), installs));
+			if (removals.length)
+				items.push(reasonList(_('Could not be removed again'), removals));
+			if (res.manual && res.manual.length)
+				items.push(packageList(_('Installed not from a repository (from a file or by a script), install them again by hand'), res.manual));
+			if (res.changed && res.changed.length)
+				items.push(E('p', _('The packages changed these settings files: %s. Their earlier versions are in %s.')
+					.format(res.changed.join(', '), '/etc/fwupdate/config-before')));
+			if (installs.length)
+				items.push(E('p', _('"Try again" installs the missing packages once more, e.g. after they appear in the repositories or space is freed.')));
+			const messages = failed.filter(function(f) { return f.message; });
+			if (messages.length)
+				items.push(E('details', {}, [
+					E('summary', { 'style': 'cursor:pointer' }, _('Details')),
+					E('pre', { 'style': 'white-space:pre-wrap' }, messages.map(function(f) { return f.name + ':\n' + f.message; }).join('\n\n'))
+				]));
+		}
+		if (rebootPending(this.data))
+			items.push(E('p', { 'class': 'spinning' }, E('strong', _('Your packages are installed. The router restarts now.'))));
+		else if (pk.reboot && (pk.state == 'done' || pk.state == 'partial'))
+			items.push(E('p', _('The router restarted after installing the packages.')));
+		if (pk.error && pk.state != 'running')
+			items.push(E('details', {}, [ E('summary', { 'style': 'cursor:pointer' }, _('Details')), E('pre', { 'style': 'white-space:pre-wrap' }, pk.error) ]));
+
+		if (buttons.length)
+			items.push(E('div', { 'style': 'display:flex; flex-wrap:wrap; gap:.6em 1em; margin:1em 0' }, buttons));
 
 		dom.content(node, items);
 	},
@@ -336,12 +560,18 @@ return view.extend({
 		else if (this.keep && dl.allow_backup === false)
 			why = _('This firmware cannot keep the current settings.');
 
+		const packages = keep && this.keepPackages && this.packageCount() > 0;
+		const manual = this.manualPackages();
+
 		ui.showModal(_('Update to %s').format(st.latest.tag), [
 			keep ? E('p', _('The settings are kept.')) : E('div', {}, [
 				why ? E('p', why) : '',
 				E('p', { 'class': 'alert-message warning' },
 					_('Without the settings the router starts as after a reset: address 192.168.1.1, no password, Wi-Fi password 12345678.'))
 			]),
+			packages ? E('p', _('Once the router is online after the update, it installs your packages again.')) : '',
+			(packages && manual.length) ? packageList(_('Packages installed not from a repository (from a file or by a script) are not installed again'), manual) : '',
+			(packages && this.pkgs.added.length > manual.length || packages && this.pkgs.removed.length) ? rebootNote() : '',
 			E('p', {}, E('button', { 'class': 'btn cbi-button', 'click': ui.createHandlerFn(this, 'handleBackup') }, _('Download a backup of the settings'))),
 			E('p', _('Do not unplug the router while it installs the update.')),
 			E('div', { 'class': 'right' }, [
@@ -349,28 +579,33 @@ return view.extend({
 				E('button', {
 					'class': 'btn cbi-button cbi-button-action',
 					'click': ui.createHandlerFn(this, function() {
-						return this.doUpgrade(keep);
+						return this.doUpgrade(keep, packages);
 					})
 				}, _('Install'))
 			])
 		]);
 	},
 
-	/* the same as Backup / Flash Firmware -> Generate archive */
+	/* the same as Backup / Flash Firmware -> Generate archive, with the current list of packages */
 	handleBackup: function(ev) {
-		const form = E('form', {
-			'method': 'post',
-			'action': L.env.cgi_base + '/cgi-backup',
-			'enctype': 'application/x-www-form-urlencoded'
-		}, E('input', { 'type': 'hidden', 'name': 'sessionid', 'value': rpc.getSessionID() }));
+		const parent = ev.currentTarget.parentNode;
+		return L.resolveDefault(callPackagesSave(), null).then(function() {
+			const form = E('form', {
+				'method': 'post',
+				'action': L.env.cgi_base + '/cgi-backup',
+				'enctype': 'application/x-www-form-urlencoded'
+			}, E('input', { 'type': 'hidden', 'name': 'sessionid', 'value': rpc.getSessionID() }));
 
-		ev.currentTarget.parentNode.appendChild(form);
-		form.submit();
-		form.parentNode.removeChild(form);
+			parent.appendChild(form);
+			form.submit();
+			form.parentNode.removeChild(form);
+		});
 	},
 
-	doUpgrade: function(keep) {
-		return callUpgrade(keep).then(L.bind(function(res) {
+	doUpgrade: function(keep, packages) {
+		return callUpgrade(keep, packages).then(L.bind(function(res) {
+			if (res && res.error == 'packages')
+				return this.showError(_('The list of packages could not be saved.'));
 			if (!res || res.error)
 				return this.showError(_('The update could not be started. Try again.'));
 

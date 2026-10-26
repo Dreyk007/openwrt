@@ -4,6 +4,12 @@ msgstr ""
 "Language: ru\n"
 "Plural-Forms: nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);\n"
 
+msgid "\"Try again\" installs the missing packages once more, e.g. after they appear in the repositories or space is freed."
+msgstr "«Повторить» ещё раз попробует установить недостающие пакеты, например когда они появятся в репозиториях или освободится место."
+
+msgid "(and %d packages they need)"
+msgstr "(и нужные им пакеты: %d)"
+
 msgid "A new release of the AX3200 / AX6S build is available: %s."
 msgstr "Вышла новая версия сборки для AX3200 / AX6S: %s."
 
@@ -12,6 +18,12 @@ msgstr "Обновления сборки AX3200 / AX6S"
 
 msgid "After every start of the router and then at the interval below. Nothing is installed without you."
 msgstr "После каждого включения роутера и затем с интервалом ниже. Без вас ничего не устанавливается."
+
+msgid "After installing your packages the router restarts once."
+msgstr "После установки пакетов роутер один раз перезагрузится."
+
+msgid "Attempts: %d, the last at %s."
+msgstr "Попыток: %d, последняя — %s."
 
 msgid "Attended Sysupgrade is installed. It offers official OpenWrt firmware, which does not include the changes of this build. Update this build on this page."
 msgstr "Установлен Attended Sysupgrade. Он предлагает официальную прошивку OpenWrt, в которой нет изменений этой сборки. Обновляйте эту сборку на этой странице."
@@ -28,8 +40,17 @@ msgstr "Сначала проверьте наличие обновлений."
 msgid "Check now"
 msgstr "Проверить сейчас"
 
+msgid "Checking the connection to the package repositories…"
+msgstr "Проверяем связь с репозиториями пакетов…"
+
 msgid "Close"
 msgstr "Закрыть"
+
+msgid "Could not be removed again"
+msgstr "Не удалось снова удалить"
+
+msgid "Details"
+msgstr "Подробнее"
 
 msgid "Do not unplug the router while it installs the update."
 msgstr "Не отключайте роутер от питания, пока устанавливается обновление."
@@ -46,6 +67,12 @@ msgstr "Загружено %s из %s МБ"
 msgid "Downloading…"
 msgstr "Загрузка…"
 
+msgid "Firmware packages you removed are removed again"
+msgstr "Удалённые вами пакеты прошивки снова удалены"
+
+msgid "Firmware packages you removed will be removed again"
+msgstr "Удалённые вами пакеты прошивки снова будут удалены"
+
 msgid "GitHub returned an error"
 msgstr "GitHub вернул ошибку"
 
@@ -55,14 +82,32 @@ msgstr "GitHub вернул ошибку (%s)"
 msgid "Grant access to the firmware update check"
 msgstr "Доступ к проверке обновлений прошивки"
 
+msgid "Hide"
+msgstr "Скрыть"
+
 msgid "Install"
 msgstr "Установить"
+
+msgid "Installed again"
+msgstr "Снова установлены"
+
+msgid "Installed again after the update"
+msgstr "После обновления установятся снова"
 
 msgid "Installed firmware"
 msgstr "Установленная прошивка"
 
+msgid "Installed not from a repository (from a file or by a script), install them again by hand"
+msgstr "Установлены не из репозитория (файлом или скриптом), установите их заново вручную"
+
+msgid "Installed not from a repository (from a file or by a script), to be installed again by hand"
+msgstr "Установлены не из репозитория (файлом или скриптом), их нужно будет установить заново вручную"
+
 msgid "Installing the update"
 msgstr "Установка обновления"
+
+msgid "Installing your packages…"
+msgstr "Устанавливаются ваши пакеты…"
 
 msgid "Instructions"
 msgstr "Инструкция"
@@ -72,6 +117,9 @@ msgstr "Интервал"
 
 msgid "It has to be installed manually: see the update page."
 msgstr "Её нужно установить вручную: подробности на странице обновления."
+
+msgid "Keep my packages (%d)"
+msgstr "Сохранить мои пакеты (%d)"
 
 msgid "Keep settings"
 msgstr "Сохранить настройки"
@@ -94,17 +142,41 @@ msgstr "Новая версия: %s"
 msgid "New releases of this build are published on GitHub. The router looks for them and can install them from this page."
 msgstr "Новые версии этой сборки публикуются на GitHub. Роутер сам их находит, а установить их можно на этой странице."
 
+msgid "No connection to the package repositories: the router installs your packages as soon as it is online."
+msgstr "Нет связи с репозиториями пакетов: роутер установит ваши пакеты, как только подключится к интернету."
+
 msgid "No list of changes."
 msgstr "Список изменений не указан."
+
+msgid "Not installed"
+msgstr "Не установлены"
 
 msgid "Notice on the Overview page"
 msgstr "Уведомление на странице «Обзор»"
 
+msgid "Once the router is online after the update, it installs your packages again."
+msgstr "Когда после обновления появится интернет, роутер снова установит ваши пакеты."
+
 msgid "Open the update page"
 msgstr "Открыть страницу обновления"
 
+msgid "Packages installed not from a repository (from a file or by a script) are not installed again"
+msgstr "Пакеты, установленные не из репозитория (файлом или скриптом), сами не установятся"
+
+msgid "Packages installed not from a repository have to be installed again by hand."
+msgstr "Пакеты, установленные не из репозитория, нужно установить заново вручную."
+
 msgid "Release"
 msgstr "Версия"
+
+msgid "Replaced"
+msgstr "Заменены"
+
+msgid "Restarting the router"
+msgstr "Перезагрузка роутера"
+
+msgid "Services switched off again"
+msgstr "Снова выключены службы"
 
 msgid "Settings"
 msgstr "Настройки"
@@ -118,6 +190,12 @@ msgstr "Показывает уведомление на странице «Об
 msgid "Skip this release"
 msgstr "Пропустить эту версию"
 
+msgid "Some of your packages could not be installed after the update."
+msgstr "После обновления часть ваших пакетов установить не удалось."
+
+msgid "Some of your packages could not be installed."
+msgstr "Часть ваших пакетов установить не удалось."
+
 msgid "The download failed: GitHub returned an error."
 msgstr "Загрузка не удалась: GitHub вернул ошибку."
 
@@ -130,11 +208,26 @@ msgstr "Загрузка прервалась. Попробуйте ещё ра�
 msgid "The downloaded file is damaged. Try again."
 msgstr "Загруженный файл повреждён. Попробуйте ещё раз."
 
+msgid "The list of packages could not be saved."
+msgstr "Не удалось сохранить список пакетов."
+
+msgid "The next one at about %s."
+msgstr "Следующая — примерно в %s."
+
+msgid "The packages changed these settings files: %s. Their earlier versions are in %s."
+msgstr "Пакеты изменили файлы настроек: %s. Прежние версии лежат в %s."
+
 msgid "The router does not accept this firmware file."
 msgstr "Роутер не принимает этот файл прошивки."
 
 msgid "The router is installing the update. Do not unplug it."
 msgstr "Роутер устанавливает обновление. Не отключайте его от питания."
+
+msgid "The router restarted after installing the packages."
+msgstr "После установки пакетов роутер перезагрузился."
+
+msgid "The router starts installing your packages at about %s, once the internet and DNS work after the boot."
+msgstr "Роутер начнёт устанавливать ваши пакеты примерно в %s, когда после загрузки заработают интернет и DNS."
 
 msgid "The settings are kept."
 msgstr "Настройки сохранятся."
@@ -163,6 +256,12 @@ msgstr "Это обновление можно установить только
 msgid "This update cannot be installed with the button below."
 msgstr "Это обновление нельзя установить кнопкой ниже."
 
+msgid "Try again"
+msgstr "Повторить"
+
+msgid "Try again now"
+msgstr "Повторить сейчас"
+
 msgid "Turn off its update notices"
 msgstr "Отключить его уведомления об обновлениях"
 
@@ -181,23 +280,74 @@ msgstr "Обновление до %s"
 msgid "Updates"
 msgstr "Обновления"
 
+msgid "What is kept"
+msgstr "Что сохранится"
+
+msgid "Without the settings the list of packages is not kept either."
+msgstr "Без сохранения настроек список пакетов тоже не сохранится."
+
 msgid "Without the settings the router starts as after a reset: address 192.168.1.1, no password, Wi-Fi password 12345678."
 msgstr "Без настроек роутер запустится как после сброса: адрес 192.168.1.1, без пароля, пароль Wi-Fi 12345678."
+
+msgid "You cancelled installing your packages."
+msgstr "Вы отменили установку своих пакетов."
 
 msgid "You chose to skip this release: the Overview page does not show it."
 msgstr "Вы пропустили эту версию: страница «Обзор» её не показывает."
 
+msgid "Your packages after the update"
+msgstr "Ваши пакеты после обновления"
+
+msgid "Your packages are installed again, except those installed not from a repository."
+msgstr "Ваши пакеты снова установлены, кроме тех, что были установлены не из репозитория."
+
+msgid "Your packages are installed again."
+msgstr "Ваши пакеты снова установлены."
+
+msgid "Your packages are installed in a moment."
+msgstr "Сейчас начнётся установка ваших пакетов."
+
+msgid "Your packages are installed. The router restarts now."
+msgstr "Ваши пакеты установлены. Роутер сейчас перезагрузится."
+
+msgid "Your packages could not be installed after the update."
+msgstr "После обновления ваши пакеты установить не удалось."
+
+msgid "Your packages could not be installed."
+msgstr "Ваши пакеты установить не удалось."
+
 msgid "checking…"
 msgstr "идёт проверка…"
+
+msgid "conflicts with the firmware"
+msgstr "конфликтует с прошивкой"
+
+msgid "could not be installed"
+msgstr "не удалось установить"
+
+msgid "could not be removed"
+msgstr "не удалось удалить"
 
 msgid "failed: %s"
 msgstr "ошибка: %s"
 
+msgid "kept, because not every package could be installed"
+msgstr "оставлен, потому что установить удалось не все пакеты"
+
 msgid "local build"
 msgstr "локальная сборка"
 
+msgid "no connection"
+msgstr "нет связи"
+
 msgid "no connection to GitHub"
 msgstr "нет связи с GitHub"
+
+msgid "not enough space"
+msgstr "не хватает места"
+
+msgid "not in the package repositories"
+msgstr "нет в репозиториях пакетов"
 
 msgid "not yet"
 msgstr "ещё не было"
@@ -213,6 +363,9 @@ msgstr "раз в неделю"
 
 msgid "release page on GitHub"
 msgstr "страница версии на GitHub"
+
+msgid "the key of its repository is missing"
+msgstr "нет ключа его репозитория"
 
 msgid "the release information could not be read"
 msgstr "не удалось прочитать сведения о версии"

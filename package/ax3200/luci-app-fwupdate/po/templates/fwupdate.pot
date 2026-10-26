@@ -1,6 +1,12 @@
 msgid ""
 msgstr "Content-Type: text/plain; charset=UTF-8"
 
+msgid "\"Try again\" installs the missing packages once more, e.g. after they appear in the repositories or space is freed."
+msgstr ""
+
+msgid "(and %d packages they need)"
+msgstr ""
+
 msgid "A new release of the AX3200 / AX6S build is available: %s."
 msgstr ""
 
@@ -8,6 +14,12 @@ msgid "AX3200 / AX6S build updates"
 msgstr ""
 
 msgid "After every start of the router and then at the interval below. Nothing is installed without you."
+msgstr ""
+
+msgid "After installing your packages the router restarts once."
+msgstr ""
+
+msgid "Attempts: %d, the last at %s."
 msgstr ""
 
 msgid "Attended Sysupgrade is installed. It offers official OpenWrt firmware, which does not include the changes of this build. Update this build on this page."
@@ -25,7 +37,16 @@ msgstr ""
 msgid "Check now"
 msgstr ""
 
+msgid "Checking the connection to the package repositories…"
+msgstr ""
+
 msgid "Close"
+msgstr ""
+
+msgid "Could not be removed again"
+msgstr ""
+
+msgid "Details"
 msgstr ""
 
 msgid "Do not unplug the router while it installs the update."
@@ -43,6 +64,12 @@ msgstr ""
 msgid "Downloading…"
 msgstr ""
 
+msgid "Firmware packages you removed are removed again"
+msgstr ""
+
+msgid "Firmware packages you removed will be removed again"
+msgstr ""
+
 msgid "GitHub returned an error"
 msgstr ""
 
@@ -52,13 +79,31 @@ msgstr ""
 msgid "Grant access to the firmware update check"
 msgstr ""
 
+msgid "Hide"
+msgstr ""
+
 msgid "Install"
+msgstr ""
+
+msgid "Installed again"
+msgstr ""
+
+msgid "Installed again after the update"
 msgstr ""
 
 msgid "Installed firmware"
 msgstr ""
 
+msgid "Installed not from a repository (from a file or by a script), install them again by hand"
+msgstr ""
+
+msgid "Installed not from a repository (from a file or by a script), to be installed again by hand"
+msgstr ""
+
 msgid "Installing the update"
+msgstr ""
+
+msgid "Installing your packages…"
 msgstr ""
 
 msgid "Instructions"
@@ -68,6 +113,9 @@ msgid "Interval"
 msgstr ""
 
 msgid "It has to be installed manually: see the update page."
+msgstr ""
+
+msgid "Keep my packages (%d)"
 msgstr ""
 
 msgid "Keep settings"
@@ -91,16 +139,40 @@ msgstr ""
 msgid "New releases of this build are published on GitHub. The router looks for them and can install them from this page."
 msgstr ""
 
+msgid "No connection to the package repositories: the router installs your packages as soon as it is online."
+msgstr ""
+
 msgid "No list of changes."
+msgstr ""
+
+msgid "Not installed"
 msgstr ""
 
 msgid "Notice on the Overview page"
 msgstr ""
 
+msgid "Once the router is online after the update, it installs your packages again."
+msgstr ""
+
 msgid "Open the update page"
 msgstr ""
 
+msgid "Packages installed not from a repository (from a file or by a script) are not installed again"
+msgstr ""
+
+msgid "Packages installed not from a repository have to be installed again by hand."
+msgstr ""
+
 msgid "Release"
+msgstr ""
+
+msgid "Replaced"
+msgstr ""
+
+msgid "Restarting the router"
+msgstr ""
+
+msgid "Services switched off again"
 msgstr ""
 
 msgid "Settings"
@@ -115,6 +187,12 @@ msgstr ""
 msgid "Skip this release"
 msgstr ""
 
+msgid "Some of your packages could not be installed after the update."
+msgstr ""
+
+msgid "Some of your packages could not be installed."
+msgstr ""
+
 msgid "The download failed: GitHub returned an error."
 msgstr ""
 
@@ -127,10 +205,25 @@ msgstr ""
 msgid "The downloaded file is damaged. Try again."
 msgstr ""
 
+msgid "The list of packages could not be saved."
+msgstr ""
+
+msgid "The next one at about %s."
+msgstr ""
+
+msgid "The packages changed these settings files: %s. Their earlier versions are in %s."
+msgstr ""
+
 msgid "The router does not accept this firmware file."
 msgstr ""
 
 msgid "The router is installing the update. Do not unplug it."
+msgstr ""
+
+msgid "The router restarted after installing the packages."
+msgstr ""
+
+msgid "The router starts installing your packages at about %s, once the internet and DNS work after the boot."
 msgstr ""
 
 msgid "The settings are kept."
@@ -160,6 +253,12 @@ msgstr ""
 msgid "This update cannot be installed with the button below."
 msgstr ""
 
+msgid "Try again"
+msgstr ""
+
+msgid "Try again now"
+msgstr ""
+
 msgid "Turn off its update notices"
 msgstr ""
 
@@ -178,22 +277,73 @@ msgstr ""
 msgid "Updates"
 msgstr ""
 
+msgid "What is kept"
+msgstr ""
+
+msgid "Without the settings the list of packages is not kept either."
+msgstr ""
+
 msgid "Without the settings the router starts as after a reset: address 192.168.1.1, no password, Wi-Fi password 12345678."
+msgstr ""
+
+msgid "You cancelled installing your packages."
 msgstr ""
 
 msgid "You chose to skip this release: the Overview page does not show it."
 msgstr ""
 
+msgid "Your packages after the update"
+msgstr ""
+
+msgid "Your packages are installed again, except those installed not from a repository."
+msgstr ""
+
+msgid "Your packages are installed again."
+msgstr ""
+
+msgid "Your packages are installed in a moment."
+msgstr ""
+
+msgid "Your packages are installed. The router restarts now."
+msgstr ""
+
+msgid "Your packages could not be installed after the update."
+msgstr ""
+
+msgid "Your packages could not be installed."
+msgstr ""
+
 msgid "checking…"
+msgstr ""
+
+msgid "conflicts with the firmware"
+msgstr ""
+
+msgid "could not be installed"
+msgstr ""
+
+msgid "could not be removed"
 msgstr ""
 
 msgid "failed: %s"
 msgstr ""
 
+msgid "kept, because not every package could be installed"
+msgstr ""
+
 msgid "local build"
 msgstr ""
 
+msgid "no connection"
+msgstr ""
+
 msgid "no connection to GitHub"
+msgstr ""
+
+msgid "not enough space"
+msgstr ""
+
+msgid "not in the package repositories"
 msgstr ""
 
 msgid "not yet"
@@ -209,6 +359,9 @@ msgid "once a week"
 msgstr ""
 
 msgid "release page on GitHub"
+msgstr ""
+
+msgid "the key of its repository is missing"
 msgstr ""
 
 msgid "the release information could not be read"

@@ -34,6 +34,11 @@ documents do not cover.
 - Update check: the hidden option `fwupdate.settings.url` points a router at a test server that
   serves a fake `release.json` (written by `.github/scripts/ax3200-release-json.py`) and an
   image. Remove it afterwards; sysupgrade keeps it.
+- "Keep my packages" without reflashing: after `fwupdate-packages save`, put the router back to
+  the packages of its image by writing `/rom/etc/apk/world` to `/etc/apk/world` and running
+  `apk add`. A package that provides one of the image (`dnsmasq-full`) stays until a
+  `!dnsmasq-full` line forces the swap. Then write `/etc/fwupdate/restore.json` with
+  `"state": "pending"` and the release, and run `fwupdate-packages retry`.
 - `pkill -f <pattern>` kills the shell that runs it when the pattern is part of its own command
   line (e.g. `ssh host 'pkill -f …'`); keep a PID file instead.
 - If the agent reaches the router over Wi-Fi, start commands that restart Wi-Fi detached on the
