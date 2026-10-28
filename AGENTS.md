@@ -27,7 +27,8 @@ documents do not cover.
 - Test a package on a router without reflashing: `apk add --allow-untrusted <file>.apk` (local
   builds are not signed with a key the image trusts). After replacing LuCI files, clear
   `/tmp/luci-indexcache*` and `/tmp/luci-modulecache`; browsers keep scripts by their `?v=`
-  stamp, which follows the mtime of `/lib/apk/db/installed`.
+  stamp, which follows the mtime of `/lib/apk/db/installed`. In an image that is the date of
+  the last commit, or the build time when the tree had uncommitted changes (`build.sh`).
 - ucode: a syntax check is `ucode <file>` on the router (a CLI prints its usage); an rpcd plugin
   loads with `ucode -e 'loadfile("<file>")()'`. There is no `fs.statvfs`; a failed
   `uclient-fetch -q` exits 8 on HTTP errors and 4 on connection errors.

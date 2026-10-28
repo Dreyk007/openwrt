@@ -206,12 +206,19 @@ info "Release: ${AX3200_RELEASE:-none (local build)}, repository ${REPO:-unknown
 # Timestamp of the files in the image: the date of this fork's last commit. Otherwise the
 # release tag's version.date gives every build of a release the same one, and with it the
 # same ?v= that LuCI appends to its scripts and styles (the mtime of /lib/apk/db/installed),
-# so a browser can keep using the cached files of another build. It is also the clock a
-# router starts with after a factory reset, until NTP sets it.
+# so a browser can keep using the cached files of another build. A tree with uncommitted
+# changes takes the time of the build instead: its builds differ from each other and from
+# that commit. It is also the clock a router starts with after a factory reset, until NTP
+# sets it.
 SDE_ARGS=()
 if SDE=$(git log -1 --no-show-signature --format=%ct 2>/dev/null) && [ -n "$SDE" ]; then
+    SDE_FROM="the last commit"
+    if ! git diff --quiet HEAD 2>/dev/null; then
+        SDE=$(date +%s)
+        SDE_FROM="the build, the tree has uncommitted changes"
+    fi
     SDE_ARGS=("SOURCE_DATE_EPOCH=$SDE")
-    info "SOURCE_DATE_EPOCH=$SDE ($(date -u -d "@$SDE" '+%F %T') UTC, the last commit)"
+    info "SOURCE_DATE_EPOCH=$SDE ($(date -u -d "@$SDE" '+%F %T') UTC, $SDE_FROM)"
 fi
 info "Starting multi-threaded firmware compilation (-j$JOBS)..."
 if ! make -j"$JOBS" "${SDE_ARGS[@]}"; then
