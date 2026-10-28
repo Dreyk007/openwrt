@@ -1,0 +1,27 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Dreyk <dreyksmail@gmail.com>
+Date: Wed, 28 Oct 2026 23:30:00 +0200
+Subject: [PATCH] xl2tpd: build as C17
+
+GCC 15, the compiler of this build, compiles C23 by default, where a
+declaration without parameters takes none. xl2tpd.c declares its
+control handlers that way, so its handler table no longer matches the
+type of the function pointers and the build fails with
+-Wincompatible-pointer-types. Build it as gnu17, as GCC 14 does.
+
+---
+diff --git a/net/xl2tpd/Makefile b/net/xl2tpd/Makefile
+index b812d05..bb28a1e 100644
+--- a/net/xl2tpd/Makefile
++++ b/net/xl2tpd/Makefile
+@@ -25,6 +25,10 @@ PKG_INSTALL:=1
+ 
+ include $(INCLUDE_DIR)/package.mk
+ 
++# GCC 15 compiles C23 by default, where a declaration without parameters takes none: the
++# handler table in xl2tpd.c then no longer matches the type of its function pointers
++TARGET_CFLAGS += -std=gnu17
++
+ define Package/xl2tpd
+   SECTION:=net
+   CATEGORY:=Network
