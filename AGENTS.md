@@ -4,8 +4,9 @@ Guidance for AI coding agents (and people) working on this repository.
 
 **Read the documentation first:** `README.md` (what the build does and why), `BUILDING.md`
 (how it is built and released), `UPGRADING.md` (every file this fork adds or changes, and how it
-is ported to a new OpenWrt release) and `RESEARCH.md` (the measurements behind the defaults; each
-section ends with its decision, so do not propose a rejected option again without new data).
+is ported to a new OpenWrt release), `RESEARCH.md` (the measurements behind the defaults; each
+section ends with its decision, so do not propose a rejected option again without new data) and
+`TODO.md` (patches to drop once upstream has the fix, deferred candidates).
 OpenWrt's own `.github/llm-review-rules.md` applies to patches. This file only adds what those
 documents do not cover.
 
@@ -107,7 +108,8 @@ documents do not cover.
   `CONFIG_DEVEL=y` and `CONFIG_BPF_TOOLCHAIN_HOST=y`: without `CONFIG_DEVEL` the choice is hidden
   and main builds LLVM from source.
 
-Waiting upstream (update this list when one is merged or closed, and drop the fork's copy):
+Waiting upstream (update this list when one is merged or closed, and drop the fork's copy as
+`TODO.md` describes):
 
 | Change in this fork | Submitted as |
 |---|---|
