@@ -1,3 +1,4 @@
 
 config settings 'settings'
 	option governor 'schedutil'
+	option rate_limit_us '10000'

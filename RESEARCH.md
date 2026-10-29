@@ -112,7 +112,18 @@ The backport of the upstream `mt7530` `.get_stats64` series (Linux 6.16) and its
 
 ¹ No run above 880 Mbit/s; average of all runs. The `performance` column: runs at ≥ 880 Mbit/s.
 
-At a fixed 1.35 GHz the same work takes a smaller share of time than at the lower clocks `schedutil` picks. During a transfer the clock stays near 1.35 GHz anyway. Much of the extra busy time is the governor's own thread `sugov:0`. In the transfers of 2026-10-29 it took 7–15 % of a core, and ~22 % with bridger, where the load is lighter and more uneven. The clock changed 400–600 times per second (`stats/total_trans`): the MT7622 driver reports no transition latency, so `rate_limit_us` defaults to 1 ms; the CPU is not the bottleneck either way (50–60 % busy at ~900 Mbit/s over the bridge). Earlier, at idle: 3.8 % CPU with `schedutil` vs 6.0 % with `ondemand`. **Decision:** `schedutil` stays the default; the operating modes for throughput, low latency and SQM use `performance`, and it can also be set alone ([section 13](#13-packet-steering-mode-2-and-the-operating-modes)).
+At a fixed 1.35 GHz the same work takes a smaller share of time than at the lower clocks `schedutil` picks. During a transfer the clock stays near 1.35 GHz anyway. Much of the extra busy time is the governor's own thread `sugov:0`. In the transfers of 2026-10-29 it took 7–15 % of a core, and ~22 % with bridger, where the load is lighter and more uneven. The clock changed 400–600 times per second (`stats/total_trans`): the MT7622 driver reports no transition latency, so `rate_limit_us` defaults to 1 ms; the CPU is not the bottleneck either way (50–60 % busy at ~900 Mbit/s over the bridge). Earlier, at idle: 3.8 % CPU with `schedutil` vs 6.0 % with `ondemand`. **`rate_limit_us` of `schedutil` (2026-10-29).** It sets how often the governor may change the clock, up or down; the kernel's default here is 1 ms. Two interleaved rounds per value, *Balanced* mode, laptop on 5 GHz with Wi-Fi power save off, build PC wired (`tests/scripts/rl/` outside the repository):
+
+| `rate_limit_us` | 1 ms | 4 ms | 10 ms | 20 ms |
+|---|---|---|---|---|
+| `sugov:0` during LAN ↔ Wi-Fi transfers, share of a core | 7–15 % | 2–5 % | 1.4–3.5 % | 0.6–1.9 % |
+| clock changes per second during transfers | 418–625 | 76–216 | 51–89 | 31–49 |
+| idle: `sugov:0` / CPU0 busy / mean clock | 3–4 % / 7–8 % / ~500 MHz | 2.5 % / 5–6 % / ~540 MHz | 2 % / 4 % / ~595 MHz | 1.5 % / 4 % / ~650 MHz |
+| idle ping build PC → laptop, median | 1.48–1.53 ms | 1.47–1.60 ms | 1.49–1.51 ms | 1.43–1.59 ms |
+
+Throughput (812–932 Mbit/s) and the idle temperature (58–59 °C over the 60 s windows) did not depend on the value. A sudden 800 Mbit/s UDP burst from the build PC to the laptop after idle (the clock sampled every 2 ms by a ucode loop on the router, which keeps the CPU idle unlike a shell loop): from 437.5 MHz the clock reached 1.35 GHz after ~15–18 ms at 1 ms, ~26 ms at 4 ms and ~58 ms at 20 ms (one clean run each; mostly background traffic had already raised the clock). The loss in the first 100 ms (0–14 %) did not follow the value: the worst runs had the clock at 1.35 GHz throughout, and the 20 ms run that ramped from 437.5 MHz lost nothing. The CPU uses the lowest and the highest of its seven steps most of the time (437.5 MHz at 1.00 V to 1.35 GHz at 1.31 V); the five between them took ~7 % of the time.
+
+**Decision:** `schedutil` stays the default; the operating modes for throughput, low latency and SQM use `performance`, and it can also be set alone ([section 13](#13-packet-steering-mode-2-and-the-operating-modes)). `rate_limit_us` is 10 ms (`cpufreq.settings.rate_limit_us`, applied by `/etc/init.d/cpufreq`): most of the gain of 20 ms at a lower idle clock and a faster ramp.
 
 ## 6. Latency and jitter
 
