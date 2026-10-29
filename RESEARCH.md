@@ -76,7 +76,20 @@ After the fix all three are counted to within 600 bytes (the PPE counts the 18 b
 
 **Wi-Fi download (bug 6):** one HTTPS connection from a 5 GHz client for 90 s, conntrack sampled every 2 s. With `975` the download direction (WAN → Wi-Fi, PPE + WED) reached conntrack every 3–4 s during the transfer, and 5.18 GB of payload on that one connection were counted as 5.55 GB (107 %, as for Wi-Fi before), more than 4 GiB without loss. Without the patches the whole download would have come in one poll at the end, truncated to 32 bits (about 1.25 GB); the old firmware was not measured.
 
-**Decision:** patches `970` and `971` (see [UPGRADING.md](UPGRADING.md), checklist items 11–12).
+**openwrt/openwrt#26107 in place of our patch (2026-10-29).** `736-06` of [openwrt/openwrt#26107](https://github.com/openwrt/openwrt/pull/26107) (Alexander Goodkind) carries the counter saving of our `970` together with two changes from Chad Monroe's tree. First, it checks the whole bucket before it binds the matching flow. Our version bound it at once, and the bind resets the slot counters, so an entry naming the same slot further down the list lost its last counters. Second, it takes the stats snapshot under `ppe_lock`: a rebind on another CPU between the snapshot and the update could count the same traffic twice. Same tests, wired client (build PC):
+
+| Test | our `970` (r92) | #26107 alone (`970`–`976` removed) | #26107 + `971`–`976` |
+|---|---|---|---|
+| 145.6 MB download closed at once, 5 runs | 105.4 % | 105.4 % | 105.4 % |
+| 30 × 10 MiB, each on its own connection | 105.7 % | 105.8 % | 105.8 % |
+| Bucket test, three UDP flows | all in full | all in full | all in full |
+| Firewall reload during a UDP flow | in full (above) | 31.6 % | in full |
+| One keep-alive HTTPS connection, ranged requests with 10–25 s pauses (the PPE ages the idle entry out after ~20 s, the next request binds it again) | — | 45 min, ~100 rebinds: 105.6 %, no jump | 20 min, 22 rebinds: 105.7 %, no jump |
+| All hosts against the WAN port counters during that run | — | 99.6 % | 100.3 % |
+
+"In full" means conntrack holds what iperf3 sent plus the 18 bytes of L2 header per packet that the PPE counts too (101.2 %). Without `972`/`973` a firewall reload still loses the flow, as before; Pablo Neira Ayuso's "netfilter: flowtable: perform unbind callback on hook release" (netfilter-devel, 2026-10-28) targets the same problem.
+
+**Decision:** patches `970` (since 2026-10-29 `736-06` of openwrt/openwrt#26107, unchanged) and `971` (see [UPGRADING.md](UPGRADING.md), checklist items 11–12). Drop `970` once the release carries #26107.
 
 ## 4. Interface counters with hardware offloading
 

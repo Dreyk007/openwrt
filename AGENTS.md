@@ -111,8 +111,8 @@ Waiting upstream (update this list when one is merged or closed, and drop the fo
 
 | Change in this fork | Submitted as |
 |---|---|
-| `971` flowtable: fetch the hardware counters before a flow is removed | [netfilter-devel](https://lore.kernel.org/netfilter-devel/20261021175030.4800-1-dreyksmail@gmail.com/), [openwrt/openwrt#26081](https://github.com/openwrt/openwrt/pull/26081) |
-| `970` PPE flow accounting on unbind and rebind | [openwrt/openwrt#26081](https://github.com/openwrt/openwrt/pull/26081) |
+| `971` flowtable: fetch the hardware counters before a flow is removed | superseded by Pablo Neira Ayuso's "netfilter: flowtable: retrieve stats on flow deletion" ([nf-next v4](https://lore.kernel.org/netfilter-devel/20261029122749.196486-1-pablo@netfilter.org/)), which needs a backport with its mtk_ppe part adapted to `736-03`/`736-04`; carried as `708` in [openwrt/openwrt#26107](https://github.com/openwrt/openwrt/pull/26107) meanwhile |
+| `970` PPE flow accounting (a copy of `736-06` from #26107) | [openwrt/openwrt#26107](https://github.com/openwrt/openwrt/pull/26107) (Alexander Goodkind; our #26081 was closed in its favour) |
 | `976` and the bridger update | [openwrt/openwrt#26178](https://github.com/openwrt/openwrt/pull/26178); a `[25.12]` backport follows its merge |
 | bridger `patches/100-…` | [nbd168/bridger#17](https://github.com/nbd168/bridger/pull/17) |
 | `feeds-patches/luci/` (DDNS status) | [openwrt/luci#9154](https://github.com/openwrt/luci/pull/9154) |
