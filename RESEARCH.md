@@ -112,7 +112,7 @@ The backport of the upstream `mt7530` `.get_stats64` series (Linux 6.16) and its
 
 ¹ No run above 880 Mbit/s; average of all runs. The `performance` column: runs at ≥ 880 Mbit/s.
 
-At a fixed 1.35 GHz the same work takes a smaller share of time than at the lower clocks `schedutil` picks; the CPU is not the bottleneck either way (50–60 % busy at ~900 Mbit/s over the bridge). Earlier, at idle: 3.8 % CPU with `schedutil` vs 6.0 % with `ondemand`. **Decision:** `schedutil` stays the default; the operating modes for throughput, low latency and SQM use `performance`, and it can also be set alone ([section 13](#13-packet-steering-mode-2-and-the-operating-modes)).
+At a fixed 1.35 GHz the same work takes a smaller share of time than at the lower clocks `schedutil` picks. During a transfer the clock stays near 1.35 GHz anyway. Much of the extra busy time is the governor's own thread `sugov:0`. In the transfers of 2026-10-29 it took 7–15 % of a core, and ~22 % with bridger, where the load is lighter and more uneven. The clock changed 400–600 times per second (`stats/total_trans`): the MT7622 driver reports no transition latency, so `rate_limit_us` defaults to 1 ms; the CPU is not the bottleneck either way (50–60 % busy at ~900 Mbit/s over the bridge). Earlier, at idle: 3.8 % CPU with `schedutil` vs 6.0 % with `ondemand`. **Decision:** `schedutil` stays the default; the operating modes for throughput, low latency and SQM use `performance`, and it can also be set alone ([section 13](#13-packet-steering-mode-2-and-the-operating-modes)).
 
 ## 6. Latency and jitter
 
@@ -269,6 +269,20 @@ With bridger the LAN → Wi-Fi throughput stays the same: the station's transmit
 * clients on 2.4 GHz (the MT7622 WMAC has no WED) get no hardware rule, their traffic stays on the CPU path; all 10 clients of the 2.4 GHz radio stayed connected and active;
 * WAN downloads are not affected (~500 Mbit/s, the ISP limit, at 11 % CPU, PPE entries from the flowtable as before);
 * 5 minutes of alternating full-speed LAN ↔ Wi-Fi transfers: no kernel warnings, bridger keeps running.
+
+**bridger `4b63ed4` (2026-10-29).** Git HEAD 2026-10-27 adds `76dbaa8`: when a client's FDB entry goes away or moves to another port, bridger removes the client's BPF redirects and hardware rules at once. Before, they stayed in place until the entry's flows expired. The checks above, repeated with `4b63ed4` + `patches/100-…`:
+* client reconnect (hostapd) during a 2-stream TCP transfer to the laptop: the transfer dips only while the client reassociates and continues in a new hardware rule;
+* `wifi` restart: back after ~10 s, in hardware;
+* `kill -9` of bridger during a 200 Mbit/s UDP stream: no loss beyond normal (0.08 %), the new instance replaces the rule.
+* band change of the client (5 → 2.4 → 5 GHz) during a 30 Mbit/s UDP stream: the rule goes away as soon as the client leaves 5 GHz, and the return gets a new hardware rule in the second the client associates, against ~2 s with `2a2d126`. The stream stops only while the laptop is associated with neither radio (~10 s and ~5 s here).
+
+Router CPU per core during a 2-stream TCP transfer from the build PC to the laptop (~910–940 Mbit/s), with the governor of the *Maximum throughput* mode (`performance`), 3 interleaved rounds:
+
+| | `4b63ed4` | `2a2d126` | no bridger |
+|---|---|---|---|
+| CPU0 / CPU1 | 2–3 % / 10–14 % | 3–4 % / 11–14 % | 32–52 % / 53–69 % |
+
+With `schedutil` (the *Balanced* mode, which does not turn bridger on) one core was 44–53 % busy with either version. The network work itself was ~10 % (`napi/phy1`, `mt76-tx`). Most of the rest was the governor's own thread `sugov:0`, ~22 % of a core, see [section 5](#5-cpu-frequency-governor).
 
 **Pitfalls:**
 * `iw dev wl1-ap0 station del <mac>` removes the station behind hostapd's back: the client reassociates within 2 s but passes no traffic for about a minute, with or without bridger. Use `ubus call hostapd.wl1-ap0 del_client '{"addr":"<mac>","reason":3,"deauth":true,"ban_time":0}'`.
