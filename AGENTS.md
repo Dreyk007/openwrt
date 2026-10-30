@@ -122,7 +122,7 @@ Waiting upstream (update this list when one is merged or closed, and drop the fo
 | `976` | [openwrt/openwrt#26178](https://github.com/openwrt/openwrt/pull/26178); a `[25.12]` backport follows its merge |
 | bridger update to `4b63ed4` | not submitted: OpenWrt main has `2a2d126` since `fbbcf2f78b`; drop ours once OpenWrt updates past `4b63ed4` |
 | bridger `patches/100-…` | [nbd168/bridger#17](https://github.com/nbd168/bridger/pull/17) |
-| `feeds-patches/luci/` (DDNS status) | [openwrt/luci#9154](https://github.com/openwrt/luci/pull/9154) |
+| `feeds-patches/luci/` (DDNS status) | [openwrt/luci#9154](https://github.com/openwrt/luci/pull/9154), in LuCI master since 2026-10-30 (`967b74154a`, `377df0286d`); waiting for `openwrt-25.12` |
 
 ## Working with the owner
 

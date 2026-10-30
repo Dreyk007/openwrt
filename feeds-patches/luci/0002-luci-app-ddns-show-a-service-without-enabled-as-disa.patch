@@ -1,8 +1,7 @@
-From dd60daaa08fcd81afea0b2fd8123de1bcc4c0640 Mon Sep 17 00:00:00 2001
+From 377df0286d48dcc0db073d5845a6937b60460e34 Mon Sep 17 00:00:00 2001
 From: Valentin Berezhnoy <dreyksmail@gmail.com>
 Date: Fri, 23 Oct 2026 16:35:33 +0300
-Subject: [PATCH 2/2] luci-app-ddns: show a service without "enabled" as
- disabled
+Subject: [PATCH 2/2] luci-app-ddns: show a service without "enabled" as disabled
 
 ddns-scripts starts a service only if its "enabled" option is set
 (config_get_bool ... enabled '0'), and the "Enabled" checkbox on the
@@ -20,7 +19,7 @@ Link: https://github.com/openwrt/luci/pull/9154
  1 file changed, 4 insertions(+), 2 deletions(-)
 
 diff --git a/applications/luci-app-ddns/root/usr/share/rpcd/ucode/ddns.uc b/applications/luci-app-ddns/root/usr/share/rpcd/ucode/ddns.uc
-index d8efbd1..f0ea09e 100644
+index 9661b361c9b5..f8bc71adb5ea 100644
 --- a/applications/luci-app-ddns/root/usr/share/rpcd/ucode/ddns.uc
 +++ b/applications/luci-app-ddns/root/usr/share/rpcd/ucode/ddns.uc
 @@ -115,6 +115,8 @@ const methods = {
@@ -32,7 +31,7 @@ index d8efbd1..f0ea09e 100644
  				const ipFile = `${rundir}/${section}.ip`;
  
  				if (stat(ipFile)?.type == 'file') {
-@@ -185,9 +187,9 @@ const methods = {
+@@ -187,9 +189,9 @@ const methods = {
  					nextUpdate = 'Verify';
  				} else if (forcedUpdateInterval === 0) {
  					nextUpdate = 'Run once';
@@ -44,6 +43,3 @@ index d8efbd1..f0ea09e 100644
  					nextUpdate = 'Stopped';
  				}
  
--- 
-2.53.0
-

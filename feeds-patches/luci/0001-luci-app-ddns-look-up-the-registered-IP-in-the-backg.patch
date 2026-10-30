@@ -1,8 +1,7 @@
-From 4f48dd391d8d6b005390208f39617a3a8a67d720 Mon Sep 17 00:00:00 2001
+From 967b74154ad71003d197bcd23f84184ad32442ab Mon Sep 17 00:00:00 2001
 From: Valentin Berezhnoy <dreyksmail@gmail.com>
 Date: Fri, 23 Oct 2026 16:33:19 +0300
-Subject: [PATCH 1/2] luci-app-ddns: look up the registered IP in the
- background
+Subject: [PATCH 1/2] luci-app-ddns: look up the registered IP in the background
 
 get_services_status looks up the registered IP of every service that
 has no cached IP in the run directory yet, and waits for the lookup.
@@ -27,13 +26,22 @@ Assisted-by: LLM
 Signed-off-by: Valentin Berezhnoy <dreyksmail@gmail.com>
 Link: https://github.com/openwrt/luci/pull/9154
 ---
- .../luci-app-ddns/root/usr/share/rpcd/ucode/ddns.uc | 13 ++++++++++---
- 1 file changed, 10 insertions(+), 3 deletions(-)
+ .../root/usr/share/rpcd/ucode/ddns.uc           | 17 +++++++++++++----
+ 1 file changed, 13 insertions(+), 4 deletions(-)
 
 diff --git a/applications/luci-app-ddns/root/usr/share/rpcd/ucode/ddns.uc b/applications/luci-app-ddns/root/usr/share/rpcd/ucode/ddns.uc
-index 32d1da7..d8efbd1 100644
+index 32d1da738b49..9661b361c9b5 100644
 --- a/applications/luci-app-ddns/root/usr/share/rpcd/ucode/ddns.uc
 +++ b/applications/luci-app-ddns/root/usr/share/rpcd/ucode/ddns.uc
+@@ -2,7 +2,7 @@
+ 
+ 'use strict';
+ 
+-import { readfile, popen, stat, glob } from 'fs';
++import { readfile, writefile, mkdir, popen, stat, glob } from 'fs';
+ import { init_enabled } from 'luci.sys';
+ import { isnan } from 'math';
+ import { cursor } from 'uci';
 @@ -115,8 +115,10 @@ const methods = {
  				if (section == '.anonymous')
  					return;
@@ -47,20 +55,19 @@ index 32d1da7..d8efbd1 100644
  				} else {
  					const dnsServer = s['dns_server'] || '';
  					const forceIpVersion = int(s['force_ipversion'] || 0);
-@@ -136,7 +138,12 @@ const methods = {
+@@ -136,7 +138,14 @@ const methods = {
  					if (length(dnsServer) > 0) push(command, '-d', shellquote(dnsServer));
  					push(command, '-- get_registered_ip');
  
 -					const result = system(`${join(' ', command)}`);
-+					/* LuCI fetches the status in one request with the rest of a page, such
-+					as the Overview, and without a working DNS the lookup takes 10 s or more
-+					to time out. Run it in the background: the helper writes the result to
-+					the IP file, and a later call reads it from there. The empty file keeps
-+					later calls from starting the lookup again. */
-+					system(`mkdir -p ${shellquote(rundir)} && : > ${shellquote(ipFile)} && { ${join(' ', command)} >/dev/null 2>&1 & }`);
++					/* Without a working DNS the lookup takes 10 s or more, and LuCI fetches
++					this status together with the rest of a page such as the Overview. So the
++					lookup runs in the background, and the helper writes its result to the IP
++					file for a later call. The file is created empty first, so that the calls
++					in between do not start the lookup again. */
++					mkdir(rundir);
++					writefile(ipFile, '');
++					system(`${join(' ', command)} >/dev/null 2>&1 &`);
  				}
  
  				lastUpdate = int(readfile(`${rundir}/${section}.update`) || 0);
--- 
-2.53.0
-

@@ -26,8 +26,9 @@ Remove an item when it is done.
 - **[openwrt/openwrt#26178](https://github.com/openwrt/openwrt/pull/26178).**
   - After the merge in main, submit the `[25.12]` backport.
   - Drop `976` once 25.12 has it.
-- **[openwrt/luci#9154](https://github.com/openwrt/luci/pull/9154).**
-  - After the merge, ask for a cherry-pick into `openwrt-25.12`.
+- **[openwrt/luci#9154](https://github.com/openwrt/luci/pull/9154).** Merged in master on 2026-10-30
+  (`967b74154a`, `377df0286d`); `feeds-patches/luci/` carries these commits.
+  - A cherry-pick into `openwrt-25.12` was requested on the PR on 2026-10-30.
   - Drop `feeds-patches/luci/` once the LuCI branch of the build has it.
 - **[nbd168/bridger#17](https://github.com/nbd168/bridger/pull/17).** No review yet; ping it after
   2026-11-04. Drop `patches/100-…` once the fix is in bridger and OpenWrt's package.
