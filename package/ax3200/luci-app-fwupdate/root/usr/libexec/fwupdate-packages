@@ -22,7 +22,7 @@
 
 'use strict';
 
-import { readfile, writefile, rename, unlink, mkdir, popen, stat, lsdir } from 'fs';
+import { readfile, writefile, rename, unlink, mkdir, popen, stat, lstat, lsdir } from 'fs';
 
 const DIR = '/etc/fwupdate';
 const LIST = DIR + '/packages.json';
@@ -134,8 +134,14 @@ function is_protected(name) {
 	return name in PROTECTED;
 }
 
+// rc.common's enabled() without running the init script: banIP's asks rpcd over ubus for the
+// package list while it loads, and rpcd waits for this script when the update page asks for the
+// list, so LuCI hung until ubus gave up after 30 s
 function service_enabled(svc) {
-	return system([ '/etc/init.d/' + svc, 'enabled' ]) == 0;
+	const s = readfile('/etc/init.d/' + svc) || '';
+	const start = match(s, /(^|\n)START=([0-9]+)/), stop = match(s, /(^|\n)STOP=([0-9]+)/);
+	return (!start || lstat('/etc/rc.d/S' + start[2] + svc) != null) &&
+		(!stop || lstat('/etc/rc.d/K' + stop[2] + svc) != null);
 }
 
 // what the user changed against the image: packages added (with how they came) and removed,

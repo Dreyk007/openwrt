@@ -58,6 +58,10 @@ documents do not cover.
 - rpc calls time out: run anything that touches the network (checks, downloads) in the
   background (`(cmd) </dev/null >/dev/null 2>&1 &`) and let the page poll a status file. Do not
   use `start-stop-daemon -x /bin/sh`: it starts nothing while any shell runs.
+- An rpcd plugin waits for the commands it runs, and rpcd answers nothing else meanwhile. Never run
+  another package's init script there, not even `enabled`: banIP's asks rpcd over ubus for the
+  package list while it loads, so rpcd hung until ubus gave up after 30 s and LuCI reported
+  "XHR request timed out".
 - `E('p', E('a', …))` renders an empty `<p>`: a single element as the second argument is taken
   for the attributes. Write `E('p', {}, E(…))` or pass an array. Nested arrays among children are
   not flattened (an `<a>` turns into its URL as text).
